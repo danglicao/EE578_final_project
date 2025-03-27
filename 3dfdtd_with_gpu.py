@@ -1,16 +1,17 @@
-import numpy as np
+import numpy as cp
 import matplotlib.pyplot as plt
+import cupy as cp
 
 def main():
     # Simulation parameters
     epsilon0 = 1.0
     mu0 = 1.0
     c0 = 1.0
-    lambda_0 = 600
-    lambda_U = 1200
+    lambda_0 = 950
+    lambda_U = 1000
     lambda_L = 900
     dx = dy = dz = 20
-    dt = dx / (c0 * np.sqrt(3))
+    dt = dx / (c0 * cp.sqrt(3))
 
     x_min, x_max = -1500, 1500
     y_min, y_max = -1500, 1500
@@ -30,43 +31,43 @@ def main():
     i_x_prob = int(round((x_prob - x_min) / dx))
     i_y_prob = int(round((y_prob - y_min) / dy))
     i_z_prob = int(round((z_prob - z_min) / dz))
-    Ex_record = np.zeros(nt, dtype = np.float32)
-    Ey_record = np.zeros(nt, dtype = np.float32)
-    Ez_record = np.zeros(nt, dtype = np.float32)
+    Ex_record = cp.zeros(nt, dtype = cp.float32)
+    Ey_record = cp.zeros(nt, dtype = cp.float32)
+    Ez_record = cp.zeros(nt, dtype = cp.float32)
 
-    omega_0 = 2 * np.pi * c0 / lambda_0
+    omega_0 = 2 * cp.pi * c0 / lambda_0
     sigma = (2 / omega_0) * (lambda_0 / (lambda_U - lambda_L))
 
-    Ex = np.zeros((Nx + 1, Ny, Nz), dtype = np.float32)
-    Ey = np.zeros((Nx, Ny + 1, Nz), dtype = np.float32)
-    Ez = np.zeros((Nx, Ny, Nz + 1), dtype = np.float32)
-    Hx = np.zeros((Nx, Ny + 1, Nz + 1), dtype = np.float32)
-    Hy = np.zeros((Nx + 1, Ny, Nz + 1), dtype = np.float32)
-    Hz = np.zeros((Nx + 1, Ny + 1, Nz), dtype = np.float32)
-    Bx = np.zeros((Nx, Ny + 1, Nz + 1), dtype = np.float32)
-    By = np.zeros((Nx + 1, Ny, Nz + 1), dtype = np.float32)
-    Bz = np.zeros((Nx + 1, Ny + 1, Nz), dtype = np.float32)
-    Dx = np.zeros((Nx + 1, Ny, Nz), dtype = np.float32)
-    Dy = np.zeros((Nx, Ny + 1, Nz), dtype = np.float32)
-    Dz = np.zeros((Nx, Ny, Nz + 1), dtype = np.float32)
-    Bx_old = np.zeros((Nx, Ny + 1, Nz + 1), dtype = np.float32)
-    By_old = np.zeros((Nx + 1, Ny, Nz + 1), dtype = np.float32)
-    Bz_old = np.zeros((Nx + 1, Ny + 1, Nz), dtype = np.float32)
-    Dx_old = np.zeros((Nx + 1, Ny, Nz), dtype = np.float32)
-    Dy_old = np.zeros((Nx, Ny + 1, Nz), dtype = np.float32)
-    Dz_old = np.zeros((Nx, Ny, Nz + 1), dtype = np.float32)
-    epsilon = np.ones((Nx, Ny, Nz), dtype = np.float32) * epsilon0
-    mu = np.ones((Nx, Ny, Nz), dtype = np.float32) * mu0
+    Ex = cp.zeros((Nx + 1, Ny, Nz), dtype = cp.float32)
+    Ey = cp.zeros((Nx, Ny + 1, Nz), dtype = cp.float32)
+    Ez = cp.zeros((Nx, Ny, Nz + 1), dtype = cp.float32)
+    Hx = cp.zeros((Nx, Ny + 1, Nz + 1), dtype = cp.float32)
+    Hy = cp.zeros((Nx + 1, Ny, Nz + 1), dtype = cp.float32)
+    Hz = cp.zeros((Nx + 1, Ny + 1, Nz), dtype = cp.float32)
+    Bx = cp.zeros((Nx, Ny + 1, Nz + 1), dtype = cp.float32)
+    By = cp.zeros((Nx + 1, Ny, Nz + 1), dtype = cp.float32)
+    Bz = cp.zeros((Nx + 1, Ny + 1, Nz), dtype = cp.float32)
+    Dx = cp.zeros((Nx + 1, Ny, Nz), dtype = cp.float32)
+    Dy = cp.zeros((Nx, Ny + 1, Nz), dtype = cp.float32)
+    Dz = cp.zeros((Nx, Ny, Nz + 1), dtype = cp.float32)
+    Bx_old = cp.zeros((Nx, Ny + 1, Nz + 1), dtype = cp.float32)
+    By_old = cp.zeros((Nx + 1, Ny, Nz + 1), dtype = cp.float32)
+    Bz_old = cp.zeros((Nx + 1, Ny + 1, Nz), dtype = cp.float32)
+    Dx_old = cp.zeros((Nx + 1, Ny, Nz), dtype = cp.float32)
+    Dy_old = cp.zeros((Nx, Ny + 1, Nz), dtype = cp.float32)
+    Dz_old = cp.zeros((Nx, Ny, Nz + 1), dtype = cp.float32)
+    epsilon = cp.ones((Nx, Ny, Nz), dtype = cp.float32) * epsilon0
+    mu = cp.ones((Nx, Ny, Nz), dtype = cp.float32) * mu0
 
 
     #PML parameters
     pml_thickness = 20
     sigma_max = (3 + 1) * epsilon0 * c0 / (2 * dx)
     sigma_x_vec, sigma_y_vec, sigma_z_vec = pml_profile(sigma_max, pml_thickness, Nx, Ny, Nz)
-    # sigma_x_3d = np.zeros((Nx, Ny, Nz), dtype = np.float32)
-    # sigma_y_3d = np.zeros((Nx, Ny, Nz), dtype = np.float32)
-    # sigma_z_3d = np.zeros((Nx, Ny, Nz), dtype = np.float32)
-    sigma_x_3d, sigma_y_3d, sigma_z_3d = np.meshgrid(sigma_x_vec, sigma_y_vec, sigma_z_vec,
+    # sigma_x_3d = cp.zeros((Nx, Ny, Nz), dtype = cp.float32)
+    # sigma_y_3d = cp.zeros((Nx, Ny, Nz), dtype = cp.float32)
+    # sigma_z_3d = cp.zeros((Nx, Ny, Nz), dtype = cp.float32)
+    sigma_x_3d, sigma_y_3d, sigma_z_3d = cp.meshgrid(sigma_x_vec, sigma_y_vec, sigma_z_vec,
                                                      indexing = 'ij')
 
     #main loop
@@ -81,9 +82,8 @@ def main():
 
         Ex_record[n] = Ex[i_x_prob, i_y_prob, i_z_prob]
 
-    plot_final_fields(Ex, Ey, Ez, Nx, Ny, Nz)
     #plotting
-    t = np.arange(nt) * dt
+    t = cp.arange(nt) * dt
     plt.plot(t, Ex_record)
     plt.xlabel('Time (s)')
     plt.ylabel('Ex at probe point')
@@ -94,15 +94,15 @@ def main():
 def gaussian_source(n, dt, sigma, omega0):
     t_now = (n - 0.5) * dt
     t0 = 4 * sigma
-    return np.exp(-((t_now - t0) / sigma)**2) * np.sin(omega0 * (t_now - t0))
+    return cp.exp(-((t_now - t0) / sigma)**2) * cp.sin(omega0 * (t_now - t0))
 
 def sigma_profile(sigma_max, pml_thickness, distance):
     return sigma_max * (distance / pml_thickness)**3
 
 def pml_profile(sigma_max, pml_thickness, Nx, Ny, Nz):
-    sigma_x = np.zeros(Nx)
-    sigma_y = np.zeros(Ny)
-    sigma_z = np.zeros(Nz)
+    sigma_x = cp.zeros(Nx)
+    sigma_y = cp.zeros(Ny)
+    sigma_z = cp.zeros(Nz)
     for i in range(pml_thickness):
         sigma_x[i] = sigma_profile(sigma_max, pml_thickness, pml_thickness - i)
         sigma_x[-1 - i] = sigma_profile(sigma_max, pml_thickness, pml_thickness - i)
@@ -303,43 +303,16 @@ def update_equations(Dx, Dy, Dz, Ex, Ey, Ez, Hx, Hy, Hz, Bx, By, Bz,
             )
     )
 
-    Dx_old = np.copy(Dx)
-    Dy_old = np.copy(Dy)
-    Dz_old = np.copy(Dz)
-    Bx_old = np.copy(Bx)
-    By_old = np.copy(By)
-    Bz_old = np.copy(Bz)
+    Dx_old = cp.copy(Dx)
+    Dy_old = cp.copy(Dy)
+    Dz_old = cp.copy(Dz)
+    Bx_old = cp.copy(Bx)
+    By_old = cp.copy(By)
+    Bz_old = cp.copy(Bz)
 
     return Dx, Dy, Dz, Ex, Ey, Ez, Hx, Hy, Hz, Bx, By, Bz, Dx_old, Dy_old, Dz_old, Bx_old, By_old, Bz_old
 
 
-def plot_final_fields(Ex, Ey, Ez, Nx, Ny, Nz):
-    kx = Nx // 2
-    ky = Ny // 2
-    kz = Nz // 2
-    plt.figure(figsize=(15, 4))
-
-    # Ex 平面图：取 Ex[:, :, kz]
-    plt.subplot(1, 3, 1)
-    plt.imshow(Ex[:, :, kz], cmap='RdBu', origin='lower')
-    plt.title('Ex at z = center')
-    plt.colorbar()
-
-    # Ey 平面图：取 Ey[:, :, kz]
-    plt.subplot(1, 3, 2)
-    plt.imshow(Ey[:, :, kz], cmap='RdBu', origin='lower')
-    plt.title('Ey at z = center')
-    plt.colorbar()
-
-    # Ez 平面图：取 Ez[:, :, kz]
-    plt.subplot(1, 3, 3)
-    plt.imshow(Ez[:, :, kz], cmap='RdBu', origin='lower')
-    plt.title('Ez at z = center')
-    plt.colorbar()
-
-    plt.suptitle('Final E-field Distribution (z = center slice)')
-    plt.tight_layout()
-    plt.show()
 
 
 

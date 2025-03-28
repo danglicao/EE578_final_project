@@ -1,29 +1,42 @@
-import numpy as cp
+import numpy as np
 import matplotlib.pyplot as plt
 import cupy as cp
+from tqdm import tqdm
 
 def main():
     # Simulation parameters
-    epsilon0 = 1.0
-    mu0 = 1.0
-    c0 = 1.0
-    lambda_0 = 950
-    lambda_U = 1000
-    lambda_L = 900
-    dx = dy = dz = 20
-    dt = dx / (c0 * cp.sqrt(3))
+
+    epsilon0 = cp.float32(1.0)
+    mu0 = cp.float32(1.0)
+    c0 = cp.float32(1.0)
+
+
+    lambda_0 = cp.float32(950)
+    lambda_U = cp.float32(1000)
+    lambda_L = cp.float32(900)
+
+    dx = dy = dz = cp.float32(20)
+
+
+    dt = dx / (c0 * cp.sqrt(cp.float32(3)))
+
 
     x_min, x_max = -1500, 1500
     y_min, y_max = -1500, 1500
     z_min, z_max = -1500, 1500
 
+
     Nx = int(round((x_max - x_min) / dx)) + 1
     Ny = int(round((y_max - y_min) / dy)) + 1
     Nz = int(round((z_max - z_min) / dz)) + 1
 
-    nt = int(50)
+    nt = int(140)
+
+
     x_src, y_src, z_src = 0, 0, 0
     x_prob, y_prob, z_prob = 1000, 0, 0
+
+
     i_x_src = int(round((x_src - x_min) / dx))
     i_y_src = int(round((y_src - y_min) / dy))
     i_z_src = int(round((z_src - z_min) / dz))
@@ -61,8 +74,13 @@ def main():
 
 
     #PML parameters
-    pml_thickness = 20
-    sigma_max = (3 + 1) * epsilon0 * c0 / (2 * dx)
+    #pml_thickness = cp.float32(20)
+    pml_thickness = int(12)
+    power_reflection_coefficient = cp.float32(1e-10)
+    # sigma_max = cp.float32(4) * epsilon0 * c0 / (2 * dx)
+    sigma_max = -(cp.float32(3+1) / cp.float32(4)) * (c0 / cp.float32(pml_thickness)) * cp.log(cp.float32(power_reflection_coefficient))
+    print(sigma_max)
+
     sigma_x_vec, sigma_y_vec, sigma_z_vec = pml_profile(sigma_max, pml_thickness, Nx, Ny, Nz)
     # sigma_x_3d = cp.zeros((Nx, Ny, Nz), dtype = cp.float32)
     # sigma_y_3d = cp.zeros((Nx, Ny, Nz), dtype = cp.float32)
@@ -70,10 +88,15 @@ def main():
     sigma_x_3d, sigma_y_3d, sigma_z_3d = cp.meshgrid(sigma_x_vec, sigma_y_vec, sigma_z_vec,
                                                      indexing = 'ij')
 
+    Ex_time_record = cp.zeros((Nx + 1, Ny, Nz), dtype = cp.float32)
+    Ey_time_record = cp.zeros((Nx, Ny + 1, Nz), dtype = cp.float32)
+    Ez_time_record = cp.zeros((Nx, Ny, Nz + 1), dtype = cp.float32)
     #main loop
-    for n in range(nt):
+    for n in tqdm(range(nt)):
         #add source
         Ex[i_x_src][i_y_src][i_z_src] += gaussian_source(n, dt, sigma, omega_0)
+        Ey[i_x_src][i_y_src][i_z_src] += gaussian_source(n, dt, sigma, omega_0)
+        Ez[i_x_src][i_y_src][i_z_src] += gaussian_source(n, dt, sigma, omega_0)
 
         Dx, Dy, Dz, Ex, Ey, Ez, Hx, Hy, Hz, Bx, By, Bz, Dx_old, Dy_old, Dz_old, Bx_old, By_old, Bz_old =update_equations(Dx, Dy, Dz, Ex, Ey, Ez, Hx, Hy, Hz, Bx, By, Bz,
                          Dx_old, Dy_old, Dz_old, Bx_old, By_old, Bz_old,
@@ -81,10 +104,39 @@ def main():
                          dt, dx, dy, dz)
 
         Ex_record[n] = Ex[i_x_prob, i_y_prob, i_z_prob]
+        Ey_record[n] = Ey[i_x_prob, i_y_prob, i_z_prob]
+        Ez_record[n] = Ez[i_x_prob, i_y_prob, i_z_prob]
+        if n == 100:
+            Ex_time_record = cp.copy(Ex)
+            Ey_time_record = cp.copy(Ey)
+            Ez_time_record = cp.copy(Ez)
 
+
+    Ex_time_record_cpu = Ex_time_record.get()
+    Ey_time_record_cpu = Ey_time_record.get()
+    Ez_time_record_cpu = Ez_time_record.get()
+
+    gpu_vars = {
+        'Dx': Dx, 'Dy': Dy, 'Dz': Dz,
+        'Ex': Ex, 'Ey': Ey, 'Ez': Ez,
+        'Hx': Hx, 'Hy': Hy, 'Hz': Hz,
+        'Bx': Bx, 'By': By, 'Bz': Bz,
+        'Dx_old': Dx_old, 'Dy_old': Dy_old, 'Dz_old': Dz_old,
+        'Bx_old': Bx_old, 'By_old': By_old, 'Bz_old': Bz_old,
+    }
+
+    cpu_vars = {name + '_cpu': arr.get() for name, arr in gpu_vars.items()}
+    Ex_record_cpu = Ex_record.get()
+    Ey_record_cpu = Ey_record.get()
+    Ez_record_cpu = Ez_record.get()
     #plotting
-    t = cp.arange(nt) * dt
-    plt.plot(t, Ex_record)
+
+    #plot_final_fields(cpu_vars['Ex_cpu'], cpu_vars['Ey_cpu'], cpu_vars['Ez_cpu'], Nx, Ny, Nz)
+    plot_final_fields(Ex_time_record_cpu, Ey_time_record_cpu, Ez_time_record_cpu,Nx, Ny, Nz,)
+    t = np.arange(nt) * dt.get()
+    print(Ex_record_cpu.shape)
+    print(Ex_record_cpu)
+    plt.plot(np.arange(nt), Ex_record_cpu)
     plt.xlabel('Time (s)')
     plt.ylabel('Ex at probe point')
     plt.title('Field at Probe Point')
@@ -258,7 +310,6 @@ def update_equations(Dx, Dy, Dz, Ex, Ey, Ez, Hx, Hy, Hz, Bx, By, Bz,
 
     sigma_x_Hy = 0.5 * (sigma_x[:-1, :, :] + sigma_x[1:, :, :])
     sigma_x_Hy = 0.5 * (sigma_x_Hy[:, :, :-1] + sigma_x_Hy[:, :, 1:])
-    # 内部区域在 j 方向取 [1:-1]
     sigma_x_Hy_in = sigma_x_Hy[:, 1:-1, :]
 
 
@@ -313,7 +364,33 @@ def update_equations(Dx, Dy, Dz, Ex, Ey, Ez, Hx, Hy, Hz, Bx, By, Bz,
     return Dx, Dy, Dz, Ex, Ey, Ez, Hx, Hy, Hz, Bx, By, Bz, Dx_old, Dy_old, Dz_old, Bx_old, By_old, Bz_old
 
 
+def plot_final_fields(Ex, Ey, Ez, Nx, Ny, Nz):
+    kx = Nx // 2
+    ky = Ny // 2
+    kz = Nz // 2
+    plt.figure(figsize=(15, 4))
 
+    # Ex 平面图：取 Ex[:, :, kz]
+    plt.subplot(1, 3, 1)
+    plt.imshow(Ex[:, :, kz], cmap='RdBu', origin='lower')
+    plt.title('Ex at z = center')
+    plt.colorbar()
+
+    # Ey 平面图：取 Ey[:, :, kz]
+    plt.subplot(1, 3, 2)
+    plt.imshow(Ey[:, :, kz], cmap='RdBu', origin='lower')
+    plt.title('Ey at z = center')
+    plt.colorbar()
+
+    # Ez 平面图：取 Ez[:, :, kz]
+    plt.subplot(1, 3, 3)
+    plt.imshow(Ez[:, :, kz], cmap='RdBu', origin='lower')
+    plt.title('Ez at z = center')
+    plt.colorbar()
+
+    plt.suptitle('Final E-field Distribution (z = center slice)')
+    plt.tight_layout()
+    plt.show()
 
 
 

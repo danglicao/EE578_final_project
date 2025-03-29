@@ -9,15 +9,15 @@ def main():
     epsilon0 = 1.0
     mu0 = 1.0
     c0 = 1.0
-    lambda_0 = 600
-    lambda_U = 1200
-    lambda_L = 900
-    dx = dy = 20
+    lambda_0 = 600e-9
+    lambda_U = 1200e-9
+    lambda_L = 900e-9
+    dx = dy = 20e-9
     dt = dx / (c0 * np.sqrt(2))
 
     # Spatial Grid Definition
-    x_min, x_max = -1500, 1500
-    y_min, y_max = -1500, 1500
+    x_min, x_max = -1500e-9, 1500e-9
+    y_min, y_max = -1500e-9, 1500e-9
 
     Nx = int(round((x_max - x_min) / dx)) + 1
     Ny = int(round((y_max - y_min) / dy)) + 1
@@ -51,7 +51,7 @@ def main():
 
     #PML parameters
     pml_thickness = 20
-    sigma_max = -(np.float32(3 + 1) / np.float32(4)) * (c0 / np.float32(pml_thickness)) * np.log(np.float32(1e-10))
+    sigma_max = 1e10
     sigma_x, sigma_y = pml_profile(sigma_max, pml_thickness, Nx, Ny)
     Ez_record = np.zeros(int(nt), dtype = np.float32)
 
@@ -66,16 +66,10 @@ def main():
             dt, dx, dy)
         Ez_record[n] = Ez[i_x_prob][i_y_prob]
 
-        # fig, ax1 = plt.subplots()
-        # im = ax1.imshow(Ez, extent = [x_min,x_max,y_min,y_max], vmin = -20, vmax = 20)
-        # square = patches.Rectangle((x_min+pml_thickness*dx, y_min+pml_thickness*dy), x_max-x_min-2*dx*pml_thickness, y_max-y_min-2*dy*pml_thickness,fc='none', ec='r')
-        # ax1.add_patch(square)
-        # divider = make_axes_locatable(ax1)
-        # cax = divider.append_axes('right', size='5%', pad=0.05)
-        # fig.colorbar(im,cax=cax)
-        
     #plotting
-    fig, (ax1,ax2) = plt.subplots(2)
+    fig, (ax1,ax2) = plt.subplots(nrows=2,ncols=1,figsize=(4, 6.5),gridspec_kw={
+        'height_ratios': [4, 2.5],
+        'hspace': 0.3})
     im = ax1.imshow(Ez, extent = [x_min,x_max,y_min,y_max], vmin = -1, vmax = 1)
     square = patches.Rectangle((x_min+pml_thickness*dx, y_min+pml_thickness*dy), x_max-x_min-2*dx*pml_thickness, y_max-y_min-2*dy*pml_thickness,fc='none', ec='r')
     ax1.add_patch(square)
@@ -83,7 +77,7 @@ def main():
     cax = divider.append_axes('right', size='5%', pad=0.05)
     fig.colorbar(im,cax=cax)
 
-    ax2.plot(np.arange(nt)*dt, Ez_record)
+    ax2.plot(np.arange(nt), Ez_record)
     ax2.set_xlabel('Time (s)')
     ax2.set_ylabel('Ez at probe point')
     ax2.set_title('Field at Probe Point')

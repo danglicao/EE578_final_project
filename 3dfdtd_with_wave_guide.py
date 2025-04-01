@@ -4,17 +4,19 @@ import cupy as cp
 from tqdm import tqdm
 
 
+
 def main():
     # Simulation parameters
 
     epsilon0 = cp.float32(1.0)
     mu0 = cp.float32(1.0)
     c0 = cp.float32(1.0)
+    epsilonR = cp.float32(12.0)
 
 
-    lambda_0 = cp.float32(1000)
-    lambda_U = cp.float32(1500)
-    lambda_L = cp.float32(500)
+    lambda_0 = cp.float32(950)
+    lambda_U = cp.float32(1000)
+    lambda_L = cp.float32(900)
 
     dx = dy = dz = cp.float32(20)
 
@@ -24,18 +26,22 @@ def main():
 
     x_min, x_max = -1500, 1500
     y_min, y_max = -1500, 1500
-    z_min, z_max = -1500, 1500
+    z_min, z_max = -300, 300
 
 
     Nx = int(round((x_max - x_min) / dx)) + 1
     Ny = int(round((y_max - y_min) / dy)) + 1
     Nz = int(round((z_max - z_min) / dz)) + 1
 
-    nt = int(500)
+    nt = int(1e5)
+    record_time = 1e5-1
 
 
     x_src, y_src, z_src = 0, 0, 0
     x_prob, y_prob, z_prob = 1000, 0, 0
+
+    x_epsilon_upper, y_epsilon_upper, z_epsilon_upper = -90, -90, -90
+    x_epsilon_lower, y_epsilon_lower, z_epsilon_lower = 90, 90, 90
 
 
     i_x_src = int(round((x_src - x_min) / dx))
@@ -45,6 +51,16 @@ def main():
     i_x_prob = int(round((x_prob - x_min) / dx))
     i_y_prob = int(round((y_prob - y_min) / dy))
     i_z_prob = int(round((z_prob - z_min) / dz))
+
+    i_x_epsilon_upper = int(round((x_epsilon_upper - x_min) / dx))
+    i_y_epsilon_upper = int(round((y_epsilon_upper - y_min) / dy))
+    i_z_epsilon_upper = int(round((z_epsilon_upper - z_min) / dz))
+    i_x_epsilon_lower = int(round((x_epsilon_lower - x_min) / dx))
+    i_y_epsilon_lower = int(round((y_epsilon_lower - y_min) / dy))
+    i_z_epsilon_lower = int(round((z_epsilon_lower - z_min) / dz))
+
+
+
     Ex_record = cp.zeros(nt, dtype = cp.float32)
     Ey_record = cp.zeros(nt, dtype = cp.float32)
     Ez_record = cp.zeros(nt, dtype = cp.float32)
@@ -72,11 +88,12 @@ def main():
     Dz_old = cp.zeros((Nx, Ny, Nz + 1), dtype = cp.float32)
     epsilon = cp.ones((Nx, Ny, Nz), dtype = cp.float32) * epsilon0
     mu = cp.ones((Nx, Ny, Nz), dtype = cp.float32) * mu0
+    epsilon[:,i_y_epsilon_upper:i_y_epsilon_lower, :] = epsilon0 * epsilonR
 
 
     #PML parameters
-    pml_thickness = int(12)
-    power_reflection_coefficient = cp.float32(1e-10)
+    pml_thickness = int(20)
+    power_reflection_coefficient = cp.float32(1e-15)
     # sigma_max = cp.float32(4) * epsilon0 * c0 / (2 * dx)
     sigma_max = -(cp.float32(3+1) / cp.float32(4)) * (c0 / cp.float32(pml_thickness)) * cp.log(cp.float32(power_reflection_coefficient))
 
@@ -105,7 +122,7 @@ def main():
         Ex_record[n] = Ex[i_x_prob, i_y_prob, i_z_prob]
         Ey_record[n] = Ey[i_x_prob, i_y_prob, i_z_prob]
         Ez_record[n] = Ez[i_x_prob, i_y_prob, i_z_prob]
-        if n == 230:
+        if n == record_time:
             Ex_time_record = cp.copy(Ex)
             Ey_time_record = cp.copy(Ey)
             Ez_time_record = cp.copy(Ez)

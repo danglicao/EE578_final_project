@@ -1,33 +1,35 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+import matplotlib.animation as animation
 
 def main():
     # Simulation parameters
     epsilon0 = 1.0
     mu0 = 1.0
     c0 = 1.0
-    lambda_0 = 600
-    lambda_U = 1200
-    lambda_L = 900
-    dx = dy = 50
+    lambda_0 = 600e-9
+    lambda_U = 1200e-9
+    lambda_L = 900e-9
+    dx = dy = 20e-9
     dt = dx / (c0 * np.sqrt(2))
 
     # Spatial Grid Definition
-    x_min, x_max = -1500, 1500
-    y_min, y_max = -1500, 1500
+    x_min, x_max = -1500e-9, 1500e-9
+    y_min, y_max = -1500e-9, 1500e-9
 
     Nx = int(round((x_max - x_min) / dx)) + 1
     Ny = int(round((y_max - y_min) / dy)) + 1
 
-    nt = 50
+    nt = 500
     x_src, y_src= 0, 0
-    x_prob, y_prob = 1000, 0
+    x_prob, y_prob = 0, 0
     i_x_src = int(round((x_src - x_min) / dx))
     i_y_src = int(round((y_src - y_min) / dy))
 
-    # i_x_prob = int(round((x_prob - x_min) / dx))
-    # i_y_prob = int(round((y_prob - y_min) / dy))
+    i_x_prob = int(round((x_prob - x_min) / dx))
+    i_y_prob = int(round((y_prob - y_min) / dy))
 
     omega_0 = 2 * np.pi * c0 / lambda_0
     sigma = (2 / omega_0) * (lambda_0 / (lambda_U - lambda_L))
@@ -48,26 +50,37 @@ def main():
     mu = np.ones((Nx, Ny), dtype = np.float32) * mu0
 
     #PML parameters
-    pml_thickness = 10
+    pml_thickness = 20
     sigma_max = 1e10
     sigma_x, sigma_y = pml_profile(sigma_max, pml_thickness, Nx, Ny)
+    Ez_record = np.zeros(int(nt), dtype = np.float32)
 
     #main loop
     for n in range(nt):
         #add source
-        Ez[i_x_src][i_y_src] += gaussian_source(n, dt, sigma, omega_0)
+        Ez[i_x_src][i_y_src] += dt * epsilon[i_x_src][i_y_src] * gaussian_source(n, dt, sigma, omega_0)
 
         Dz, Ez, Hx, Hy, Bx, By, Dz_old, Bx_old, By_old = update_equations(Dz, Ez, Hx, Hy, Bx, By,
             Dz_old, Bx_old, By_old,
             sigma_x, sigma_y, epsilon, mu,
             dt, dx, dy)
+        Ez_record[n] = Ez[i_x_prob][i_y_prob]
 
     #plotting
-    fig, ax = plt.subplots()
-    ax.imshow(Ez, extent = [x_min,x_max,y_min,y_max])
+    fig, (ax1,ax2) = plt.subplots(nrows=2,ncols=1,figsize=(4, 6.5),gridspec_kw={
+        'height_ratios': [4, 2.5],
+        'hspace': 0.3})
+    im = ax1.imshow(Ez, extent = [x_min,x_max,y_min,y_max], vmin = -1, vmax = 1)
     square = patches.Rectangle((x_min+pml_thickness*dx, y_min+pml_thickness*dy), x_max-x_min-2*dx*pml_thickness, y_max-y_min-2*dy*pml_thickness,fc='none', ec='r')
-    ax.add_patch(square)
-    print(Ez)
+    ax1.add_patch(square)
+    divider = make_axes_locatable(ax1)
+    cax = divider.append_axes('right', size='5%', pad=0.05)
+    fig.colorbar(im,cax=cax)
+
+    ax2.plot(np.arange(nt), Ez_record)
+    ax2.set_xlabel('Time (s)')
+    ax2.set_ylabel('Ez at probe point')
+    ax2.set_title('Field at Probe Point')
     plt.show()
 
 def gaussian_source(n, dt, sigma, omega0):
@@ -94,23 +107,22 @@ def update_equations(Dz, Ez, Hx, Hy, Bx, By,
                      Dz_old, Bx_old, By_old,
                      sigma_x, sigma_y, epsilon, mu,
                      dt, dx, dy):
-
     # Dz, Ez
-    Dz[1:-1, 1:-1] = ((1 - dt/2 * sigma_y[1:-1, 1:-1]) / (1 + dt/2 * sigma_x[1:-1, 1:-1])) * Dz[1:-1, 1:-1] + \
+    Dz[1:-1, 1:-1] = ((1 - dt/2 * sigma_x[1:-1, 1:-1]) / (1 + dt/2 * sigma_x[1:-1, 1:-1])) * Dz[1:-1, 1:-1] + \
         dt / (1 + dt/2 * sigma_x[1:-1, 1:-1]) / epsilon[1:-1, 1:-1] * \
         ((Hy[1:, 1:-1] - Hy[:-1,1:-1]) / dx - (Hx[1:-1, 1:] - Hx[1:-1, :-1]) / dy)
-    Ez[1:-1, 1:-1] = ((1 - dt / 2 * sigma_x[1:-1, 1:-1]) / (1 + dt / 2 * sigma_y[1:-1, 1:-1])) * Ez[1:-1, 1:-1] + \
-        1 /  (1 + dt / 2 * sigma_y[1:-1, 1:-1]) * (Dz[1:-1, 1:-1] - Dz_old[1:-1, 1:-1])
+    Ez[1:-1, 1:-1] = ((1 - dt/2 * sigma_y[1:-1, 1:-1]) / (1 + dt/2 * sigma_y[1:-1, 1:-1])) * Ez[1:-1, 1:-1] + \
+        1 / (1 + dt/2 * sigma_y[1:-1, 1:-1]) * (Dz[1:-1, 1:-1] - Dz_old[1:-1, 1:-1])
 
     # Bx, Hx
     sigma_y_Bx = 0.5 * (sigma_y[:, :-1] + sigma_y[:, 1:])
     sigma_x_Hx = 0.5 * (sigma_x[:, :-1] + sigma_x[:, 1:])
     mu_Hx = 0.5 * (mu[:, :-1] + mu[:, 1:])
     Bx[:-1, :] = ((1 - dt/2 * sigma_y_Bx[:-1, :]) / (1 + dt/2 * sigma_y_Bx[:-1, :])) * Bx[:-1, :] - \
-        dt / (1 + dt/2 * sigma_y_Bx[:-1, :]) * mu_Hx[:-1, :] * (Ez[:-1, 1:] - Ez[:-1, :-1])
+        dt / (1 + dt/2 * sigma_y_Bx[:-1, :]) * mu_Hx[:-1, :] * (Ez[:-1, 1:] - Ez[:-1, :-1]) / dy
     Hx[:-1, :] = Hx[:-1, :] + \
-            (1 + dt / 2 * sigma_x_Hx[:-1, :]) * Bx[:-1,:] - \
-            (1 - dt / 2 * sigma_x_Hx[:-1, :]) * Bx_old[:-1, :]
+            (1 + dt/2 * sigma_x_Hx[:-1, :]) * Bx[:-1,:] - \
+            (1 - dt/2 * sigma_x_Hx[:-1, :]) * Bx_old[:-1, :]
 
     # By, Hy
     sigma_x_By = 0.5 * (sigma_x[:-1, :] + sigma_x[1:, :])
@@ -119,7 +131,7 @@ def update_equations(Dz, Ez, Hx, Hy, Bx, By,
     By[:, :-1] = ((1 - dt/2 * sigma_x_By[:, :-1]) / (1 + dt/2 * sigma_x_By[:, :-1])) * By[:, :-1] + \
         dt / (1 + dt/2 * sigma_x_By[:, :-1]) / mu_Hy[:, :-1] * (Ez[1:, :-1] - Ez[:-1, :-1]) / dx
     Hy[:, :-1] = Hy[:, :-1] + (1 + dt / 2 * sigma_y_Hy[:, :-1]) * By[:, :-1] - \
-        (1 - dt / 2 * sigma_y_Hy[:, :-1]) * By_old[:, :-1]
+        (1 - dt/2 * sigma_y_Hy[:, :-1]) * By_old[:, :-1]
 
     Dz_old = np.copy(Dz)
     Bx_old = np.copy(Bx)

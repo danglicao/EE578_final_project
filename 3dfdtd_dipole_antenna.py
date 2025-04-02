@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cupy as cp
 from tqdm import tqdm
+#必须间歇激励，搞total/scatter field要动更新方程太复杂了。高斯正弦的波峰符合预期，但看不到后面的场。选择正弦波作为传递，添加电流场
 
 
 
@@ -18,7 +19,7 @@ def main():
     lambda_U = cp.float32(1000)
     lambda_L = cp.float32(900)
 
-    dx = dy = dz = cp.float32(30)
+    dx = dy = dz = cp.float32(20)
 
 
     dt = 0.99*dx / (c0 * cp.sqrt(cp.float32(3)))
@@ -33,11 +34,21 @@ def main():
     Ny = int(round((y_max - y_min) / dy)) + 1
     Nz = int(round((z_max - z_min) / dz)) + 1
 
-    nt = int(1e5)
-    record_time = 1e5-1
+    nt = int(3000)
+    record_time = nt - 1
 
+    #Antenna hyper parameters
+    L = cp.float32(lambda_0 / (2))
+    L_rel = L//dz
+    ic, jc, kc = Nx // 2, Ny // 2, Nz // 2
 
-    x_src, y_src, z_src = -1000, 0, 0
+    half_len = L / 2
+    half_len_rel = int(L_rel // 2)
+
+    i_z_dipole_start = kc - half_len_rel
+    i_z_dipole_end = kc + half_len_rel + 1
+
+    x_src, y_src, z_src = 0, 0, 0
     x_prob, y_prob, z_prob = 1000, 0, 0
 
     x_epsilon_upper, y_epsilon_upper, z_epsilon_upper = -90, -90, -90
@@ -88,14 +99,14 @@ def main():
     Dz_old = cp.zeros((Nx, Ny, Nz + 1), dtype = cp.float32)
     epsilon = cp.ones((Nx, Ny, Nz), dtype = cp.float32) * epsilon0
     mu = cp.ones((Nx, Ny, Nz), dtype = cp.float32) * mu0
-    epsilon[:,i_y_epsilon_upper:i_y_epsilon_lower, :] = epsilon0 * epsilonR
+    # epsilon[:,i_y_epsilon_upper:i_y_epsilon_lower, :] = epsilon0 * epsilonR
 
 
     #PML parameters
     pml_thickness = int(8)
-    power_reflection_coefficient = cp.float32(1e-12)
-    sigma_max = cp.float32(4) * epsilon0 * c0 / (2 * dx)
-    # sigma_max = -(cp.float32(3+1) / cp.float32(4)) * (c0 / cp.float32(pml_thickness)) * cp.log(cp.float32(power_reflection_coefficient))
+    power_reflection_coefficient = cp.float32(1e-8)
+    # sigma_max = cp.float32(4) * epsilon0 * c0 / (2 * dx)
+    sigma_max = -(cp.float32(3+1) / cp.float32(4)) * (c0 / cp.float32(pml_thickness)) * cp.log(cp.float32(power_reflection_coefficient))
 
     sigma_x_vec, sigma_y_vec, sigma_z_vec = pml_profile(sigma_max, pml_thickness, Nx, Ny, Nz)
     # sigma_x_3d = cp.zeros((Nx, Ny, Nz), dtype = cp.float32)
@@ -107,17 +118,73 @@ def main():
     Ex_time_record = cp.zeros((Nx + 1, Ny, Nz), dtype = cp.float32)
     Ey_time_record = cp.zeros((Nx, Ny + 1, Nz), dtype = cp.float32)
     Ez_time_record = cp.zeros((Nx, Ny, Nz + 1), dtype = cp.float32)
-    #main loop
+
+
+    #用电导率模拟pec
+    sigma_x_3d[ic, jc, i_z_dipole_start : i_z_dipole_end] = 1e8
+    sigma_y_3d[ic, jc, i_z_dipole_start : i_z_dipole_end] = 1e8
+    sigma_z_3d[ic, jc, i_z_dipole_start : i_z_dipole_end] = 1e8
+    #for source
+    z_coords = cp.arange(i_z_dipole_start, i_z_dipole_end)
+    z_rel = (z_coords - kc) * dz
+    I_dipole = I_profile(lambda_0, c0, z_rel, L)
+    print(I_dipole)# Dipole current profile
+    # main loop
     for n in tqdm(range(nt)):
+
         #add source
         # Ex[i_x_src][i_y_src][i_z_src] += gaussian_source(n, dt, sigma, omega_0)
         # Ey[i_x_src][i_y_src][i_z_src] += gaussian_source(n, dt, sigma, omega_0)
-        Ez[i_x_src][i_y_src][i_z_src] += gaussian_source(n, dt, sigma, omega_0)
+        # Ez[i_x_src][i_y_src][i_z_src] += gaussian_source(n, dt, sigma, omega_0)
+        # Ez[ic, jc, i_z_dipole_start:i_z_dipole_end] += 0.5 * I_dipole * gaussian_source(n, dt, sigma, omega_0)
+        #gaussian source
+        # Ez[ic - 1, jc - 1, i_z_dipole_start:i_z_dipole_end] += 0.5 *  gaussian_source(n,
+        #                                                                                         dt,
+        #                                                                                         sigma,
+        #                                                                                         omega_0)
+        # Ez[ic + 1, jc + 1, i_z_dipole_start:i_z_dipole_end] += 0.5 * gaussian_source(n,
+        #                                                                                         dt,
+        #                                                                                         sigma,
+        #                                                                                         omega_0)
+        # gaussian source with dipole current profile
+        # Ez[ic - 1, jc - 1, i_z_dipole_start:i_z_dipole_end] += 0.5 * I_dipole * gaussian_source(n,
+        #                                                                                     dt,
+        #                                                                                     sigma,
+        #                                                                                     omega_0)
+        # Ez[ic + 1, jc + 1, i_z_dipole_start:i_z_dipole_end] += 0.5 * I_dipole * gaussian_source(n,
+        #                                                                                     dt,
+        #                                                                                     sigma,
+        #                                                                                     omega_0)
+        #sine source
+        # Ez[ic - 1, jc - 1, i_z_dipole_start:i_z_dipole_end] += 0.5 *  sine_source(n,
+        #                                                                                         dt,
+        #                                                                                         sigma,
+        #                                                                                         omega_0)
+        # Ez[ic + 1, jc + 1, i_z_dipole_start:i_z_dipole_end] += 0.5 * sine_source(n,
+        #                                                                                         dt,
+        #                                                                                         sigma,
+        #                                                                                         omega_0)
+        # sine source with dipole current profile
+        Ez[ic - 1, jc - 1, i_z_dipole_start:i_z_dipole_end] += 0.5 * I_dipole * sine_source(n,
+                                                                                 dt,
+                                                                                 sigma,
+                                                                                 omega_0)
+        Ez[ic + 1, jc + 1, i_z_dipole_start:i_z_dipole_end] += 0.5 * I_dipole * sine_source(n,
+                                                                                 dt,
+                                                                                 sigma,
+                                                                                 omega_0)
+
+
 
         Dx, Dy, Dz, Ex, Ey, Ez, Hx, Hy, Hz, Bx, By, Bz, Dx_old, Dy_old, Dz_old, Bx_old, By_old, Bz_old =update_equations(Dx, Dy, Dz, Ex, Ey, Ez, Hx, Hy, Hz, Bx, By, Bz,
                          Dx_old, Dy_old, Dz_old, Bx_old, By_old, Bz_old,
                          sigma_x_3d, sigma_y_3d, sigma_z_3d, epsilon, mu,
                          dt, dx, dy, dz)
+
+        # Ex[ic,jc,i_z_dipole_start:i_z_dipole_end] = 0
+        # Ey[ic,jc,i_z_dipole_start:i_z_dipole_end] = 0
+        # Ez[ic,jc,i_z_dipole_start:i_z_dipole_end] = 0
+
 
         Ex_record[n] = Ex[i_x_prob, i_y_prob, i_z_prob]
         Ey_record[n] = Ey[i_x_prob, i_y_prob, i_z_prob]
@@ -149,16 +216,30 @@ def main():
 
     #plot_final_fields(cpu_vars['Ex_cpu'], cpu_vars['Ey_cpu'], cpu_vars['Ez_cpu'], Nx, Ny, Nz)
     plot_final_fields(Ex_time_record_cpu, Ey_time_record_cpu, Ez_time_record_cpu,Nx, Ny, Nz)
+    plot_final_fields_normalized(Ex_time_record_cpu, Ey_time_record_cpu, Ez_time_record_cpu,Nx, Ny, Nz)
     t = np.arange(nt) * dt.get()
     #print(Ex_record_cpu.shape)
     #print(Ex_record_cpu)
     plot_probe_fields(t, Ex_record_cpu, Ey_record_cpu, Ez_record_cpu)
-    plot_final_fields_normalized(Ex_time_record_cpu, Ey_time_record_cpu, Ez_time_record_cpu,Nx, Ny, Nz)
 
 def gaussian_source(n, dt, sigma, omega0):
     t_now = (n - 0.5) * dt
     t0 = 4 * sigma
     return cp.exp(-((t_now - t0) / sigma)**2) * cp.sin(omega0 * (t_now - t0))
+
+def sine_source(n, dt, sigma, omega0, amplitude=1.0):
+    t_now = (n - 0.5) * dt
+    t0 = 4*sigma
+    return amplitude * cp.sin(omega0 * (t_now - t0))
+
+def I_profile( lambda_0, c0, position,  L):
+    f0 = c0 / lambda_0
+    k0 = 2 * cp.pi * f0 / c0
+    # z_coords = cp.arange(i_z_dipole_start, i_z_dipole_end)
+    # z_rel = (z_coords - kc) * dz
+    return cp.sin(k0 * (L/ 2 - cp.abs(position)))
+
+
 
 def sigma_profile(sigma_max, pml_thickness, distance):
     return sigma_max * (distance / pml_thickness)**3
@@ -460,8 +541,6 @@ def plot_final_fields_normalized(Ex, Ey, Ez, Nx, Ny, Nz):
     plt.suptitle('Final E-field Distribution (z = center slice)')
     plt.tight_layout()
     plt.show()
-
-
 
 
 if __name__ == "__main__":

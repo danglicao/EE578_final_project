@@ -2,8 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cupy as cp
 from tqdm import tqdm
-import matplotlib.animation as animation
-import pyvista as pv
 #all wavelength/boundary length in mm
 
 
@@ -38,7 +36,7 @@ def main():
     Ny = int(round((y_max - y_min) / dy)) + 1
     Nz = int(round((z_max - z_min) / dz)) + 1
 
-    nt = int(3e3)
+    nt = int(2e3)
     record_time = 108
 
     #Antenna hyper parameters
@@ -82,6 +80,7 @@ def main():
 
     Ez_gap_record_left = cp.zeros(nt, dtype = cp.float32)
     Ez_gap_record_right = cp.zeros(nt, dtype = cp.float32)
+    Ez_gap_record_center = cp.zeros(nt, dtype = cp.float32)
     j_record = cp.zeros(nt, dtype = cp.float32)
 
 
@@ -130,15 +129,22 @@ def main():
 
 
     #用电导率模拟pec
-    sigma_x_3d[ic-1, jc-1, i_z_dipole_start : i_z_dipole_end] = 1e8
-    sigma_y_3d[ic-1, jc-1, i_z_dipole_start : i_z_dipole_end] = 1e8
-    sigma_z_3d[ic-1, jc-1, i_z_dipole_start : i_z_dipole_end] = 1e8
-    sigma_x_3d[ic + 1, jc + 1, i_z_dipole_start: i_z_dipole_end] = 1e8
-    sigma_y_3d[ic + 1, jc + 1, i_z_dipole_start: i_z_dipole_end] = 1e8
-    sigma_z_3d[ic + 1, jc + 1, i_z_dipole_start: i_z_dipole_end] = 1e8
+    # sigma_x_3d[ic-1, jc-1, i_z_dipole_start : i_z_dipole_end] = 1e8
+    # sigma_y_3d[ic-1, jc-1, i_z_dipole_start : i_z_dipole_end] = 1e8
+    # sigma_z_3d[ic-1, jc-1, i_z_dipole_start : i_z_dipole_end] = 1e8
+    # sigma_x_3d[ic + 1, jc + 1, i_z_dipole_start: i_z_dipole_end] = 1e8
+    # sigma_y_3d[ic + 1, jc + 1, i_z_dipole_start: i_z_dipole_end] = 1e8
+    # sigma_z_3d[ic + 1, jc + 1, i_z_dipole_start: i_z_dipole_end] = 1e8
     # sigma_x_3d[ic, jc, i_z_dipole_start: i_z_dipole_end] = 1e8
     # sigma_y_3d[ic, jc, i_z_dipole_start: i_z_dipole_end] = 1e8
     # sigma_z_3d[ic, jc, i_z_dipole_start: i_z_dipole_end] = 1e8
+
+    sigma_x_3d[ic, jc, i_z_dipole_start:kc-1] = 1e8
+    sigma_y_3d[ic, jc, i_z_dipole_start:kc-1] = 1e8
+    sigma_z_3d[ic, jc, i_z_dipole_start:kc-1] = 1e8
+    sigma_x_3d[ic, jc, kc + 1:i_z_dipole_end] = 1e8
+    sigma_y_3d[ic, jc, kc + 1:i_z_dipole_end] = 1e8
+    sigma_z_3d[ic, jc, kc + 1:i_z_dipole_end] = 1e8
     #for source
     z_coords = cp.arange(i_z_dipole_start, i_z_dipole_end)
     z_rel = (z_coords - kc) * dz
@@ -174,7 +180,7 @@ def main():
         #                                                                sigma,
         #                                                                omega_0)
         #gaussian source
-        Ez[ic, jc, i_z_dipole_start:i_z_dipole_end] += gaussian_source(n,
+        Ez[ic, jc, kc] += gaussian_source(n,
                                                                                                 dt,
                                                                                                 sigma,
                                                                                                 omega_0)
@@ -200,9 +206,18 @@ def main():
                          sigma_x_3d, sigma_y_3d, sigma_z_3d, epsilon, mu,
                          dt, dx, dy, dz)
 
-        # Ex[ic,jc,i_z_dipole_start:i_z_dipole_end] = 0
-        # Ey[ic,jc,i_z_dipole_start:i_z_dipole_end] = 0
-        # Ez[ic,jc,i_z_dipole_start:i_z_dipole_end] = 0
+        # Ex[ic-1,jc-1,i_z_dipole_start:i_z_dipole_end] = 0
+        # Ey[ic-1,jc-1,i_z_dipole_start:i_z_dipole_end] = 0
+        # Ez[ic-1,jc-1,i_z_dipole_start:i_z_dipole_end] = 0
+        # Ex[ic+1, jc+1, i_z_dipole_start:i_z_dipole_end] = 0
+        # Ey[ic+1, jc+1, i_z_dipole_start:i_z_dipole_end] = 0
+        # Ez[ic+1, jc+1, i_z_dipole_start:i_z_dipole_end] = 0
+        # Ex[ic,jc,i_z_dipole_start:kc-1] = 0
+        # Ey[ic,jc,i_z_dipole_start:kc-1] = 0
+        # Ez[ic,jc,i_z_dipole_start:kc-1] = 0
+        # Ex[ic, jc, kc + 1:i_z_dipole_end] = 0
+        # Ey[ic, jc, kc + 1:i_z_dipole_end] = 0
+        # Ez[ic, jc, kc + 1:i_z_dipole_end] = 0
 
         Ex_record[n] = Ex[i_x_prob, i_y_prob, i_z_prob]
         Ey_record[n] = Ey[i_x_prob, i_y_prob, i_z_prob]
@@ -210,6 +225,7 @@ def main():
 
         Ez_gap_record_left[n] = Ez[ic, jc, i_z_dipole_start+1]
         Ez_gap_record_right[n] = Ez[ic, jc, i_z_dipole_end - 1]
+        Ez_gap_record_center = Ez[ic, jc, kc]
         j_record[n] = gaussian_source(n, dt,sigma,omega_0)
 
 
@@ -230,9 +246,10 @@ def main():
 
     Ez_gap_record_left_cpu = Ez_gap_record_left.get()
     Ez_gap_record_right_cpu = Ez_gap_record_right.get()
+    Ez_gap_record_center_cpu = Ez_gap_record_center.get()
     dEz_cpu = Ez_gap_record_right_cpu - Ez_gap_record_left_cpu
     j_record_cpu = j_record.get()
-    plt.plot(dEz_cpu, label = "dEz")
+    plt.plot(Ez_gap_record_center_cpu, label = "Ez")
     plt.plot(j_record_cpu, label = "J")
     plt.legend()
     plt.title("Time-domain Signals")
@@ -242,11 +259,11 @@ def main():
     dx_real = dy_real = dz_real = 2.5e-3 #m
     dt_real = 0.99 * dx_real / (c_real * np.sqrt(3)) # s
 
-    Vz_f = np.fft.fft(dEz_cpu)
+    Vz_f = np.fft.fft(Ez_gap_record_center_cpu)
     J_f = np.fft.fft(j_record_cpu)
 
     V_f = Vz_f * dz_real
-    I_f = J_f * dx_real * dy_real* L_rel
+    I_f = J_f * dx_real * dy_real
 
     Z_f = V_f / I_f
     print(Z_f)
@@ -600,85 +617,8 @@ def plot_final_fields_normalized(Ex, Ey, Ez, Nx, Ny, Nz):
     plt.show()
 
 
-def generate_field_animation(
-        field_frames,
-        save_path = "figs/field_animation.mp4",
-        save_every = 1,
-        cmap = "RdBu",
-        vmin = None,
-        vmax = None,
-        fps = 30,
-        dpi = 200
-):
-
-    n_frames = field_frames.shape[0]
-
-    if vmin is None:
-        vmin = field_frames.min()
-    if vmax is None:
-        vmax = field_frames.max()
-
-    fig, ax = plt.subplots()
-    im = ax.imshow(
-        field_frames[0],  # Start with the first frame
-        cmap = cmap,
-        vmin = vmin,
-        vmax = vmax,
-        origin = "lower",
-        aspect = "auto"
-    )
-    cb = plt.colorbar(im, ax = ax)
-    cb.set_label("Field amplitude")
-
-    def update(i):
-        im.set_array(field_frames[i])
-        ax.set_title(f"Time step {i * save_every}")
-        return [im]
-
-    ani = animation.FuncAnimation(
-        fig, update, frames = n_frames, interval = 1000 / fps
-    )
-    ani.save(save_path, dpi = dpi, extra_args=['-vcodec', 'h264_nvenc'])
-    print(f"✅ 动画保存成功：{save_path}")
 
 
-def plot_electric_field_magnitude_3d(Ex, Ey, Ez, spacing = (1.0, 1.0, 1.0)):
-
-    # 插值 Yee 网格分量到中心
-    Ex_interp = 0.5 * (Ex[:-1, :, :] + Ex[1:, :, :])
-    Ey_interp = 0.5 * (Ey[:, :-1, :] + Ey[:, 1:, :])
-    Ez_interp = 0.5 * (Ez[:, :, :-1] + Ez[:, :, 1:])
-
-    # 电场强度模长
-    E_magnitude = np.sqrt(Ex_interp ** 2 + Ey_interp ** 2 + Ez_interp ** 2)
-
-    # 构造 pyvista ImageData 网格
-    Nx, Ny, Nz = E_magnitude.shape
-    grid = pv.ImageData()
-    grid.dimensions = np.array([Nx, Ny, Nz]) + 1
-    grid.origin = (0.0, 0.0, 0.0)
-    grid.spacing = spacing
-    grid.cell_data["E_magnitude"] = E_magnitude.flatten(order = "F")
-
-    # 初始化绘图器
-    plotter = pv.Plotter()
-
-    # 添加体积云图
-    plotter.add_volume(
-        grid, scalars = "E_magnitude",
-        cmap = "plasma",
-        opacity = [0.0, 0.05, 0.1, 0.3, 0.6, 1.0],  # 调整透明度以显示更多细节
-        shade = True
-    )
-
-    # 添加 z = 中心 截面
-    z_center = grid.bounds[5] / 2  # z_max / 2
-    slice_z = grid.slice(normal = 'z', origin = (0, 0, z_center))
-    plotter.add_mesh(slice_z, cmap = "coolwarm", opacity = 1.0, show_scalar_bar = True)
-
-    # 显示图像
-    plotter.add_axes()
-    plotter.show()
 
 
 if __name__ == "__main__":

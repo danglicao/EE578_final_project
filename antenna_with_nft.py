@@ -223,8 +223,8 @@ def main():
         Ey_record[n] = Ey[i_x_prob, i_y_prob, i_z_prob]
         Ez_record[n] = Ez[i_x_prob, i_y_prob, i_z_prob]
 
-        Ez_gap_record_left[n] = Ez[ic, jc, i_z_dipole_start+1]
-        Ez_gap_record_right[n] = Ez[ic, jc, i_z_dipole_end - 1]
+        Ez_gap_record_left[n] = Ez[ic, jc, kc-1]
+        Ez_gap_record_right[n] = Ez[ic, jc, kc+1]
         Ez_gap_record_center = Ez[ic, jc, kc]
         j_record[n] = gaussian_source(n, dt,sigma,omega_0)
 
@@ -249,7 +249,7 @@ def main():
     Ez_gap_record_center_cpu = Ez_gap_record_center.get()
     dEz_cpu = Ez_gap_record_right_cpu - Ez_gap_record_left_cpu
     j_record_cpu = j_record.get()
-    plt.plot(Ez_gap_record_center_cpu, label = "Ez")
+    plt.plot(dEz_cpu, label = "Ez")
     plt.plot(j_record_cpu, label = "J")
     plt.legend()
     plt.title("Time-domain Signals")
@@ -259,7 +259,7 @@ def main():
     dx_real = dy_real = dz_real = 2.5e-3 #m
     dt_real = 0.99 * dx_real / (c_real * np.sqrt(3)) # s
 
-    Vz_f = np.fft.fft(Ez_gap_record_center_cpu)
+    Vz_f = np.fft.fft(dEz_cpu)
     J_f = np.fft.fft(j_record_cpu)
 
     V_f = Vz_f * dz_real

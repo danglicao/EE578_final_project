@@ -82,6 +82,9 @@ def main():
     Hy_record = cp.zeros(nt, dtype = cp.float32)
     Hz_record = cp.zeros(nt, dtype = cp.float32)
 
+    Ez_gap_record = cp.zeros(nt, dtype = cp.float32)
+    j_record = cp.zeros(nt, dtype = cp.float32)
+
     #动画
     save_every = 5
     n_frames = nt // save_every
@@ -132,6 +135,7 @@ def main():
     Ex_time_record = cp.zeros((Nx + 1, Ny, Nz), dtype = cp.float32)
     Ey_time_record = cp.zeros((Nx, Ny + 1, Nz), dtype = cp.float32)
     Ez_time_record = cp.zeros((Nx, Ny, Nz + 1), dtype = cp.float32)
+
 
 
     #用电导率模拟pec

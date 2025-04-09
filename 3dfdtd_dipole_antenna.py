@@ -2,6 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cupy as cp
 from tqdm import tqdm
+import matplotlib.animation as animation
+import pyvista as pv
+
 #必须间歇激励，搞total/scatter field要动更新方程太复杂了。高斯正弦的波峰符合预期，但看不到后面的场。选择正弦波作为传递，添加电流场
 
 
@@ -49,7 +52,7 @@ def main():
     i_z_dipole_end = kc + half_len_rel + 1
 
     x_src, y_src, z_src = 0, 0, 0
-    x_prob, y_prob, z_prob = 1000, 0, 0
+    x_prob, y_prob, z_prob = 1400, 0, 0
 
     x_epsilon_upper, y_epsilon_upper, z_epsilon_upper = -90, -90, -90
     x_epsilon_lower, y_epsilon_lower, z_epsilon_lower = 90, 90, 90
@@ -75,6 +78,15 @@ def main():
     Ex_record = cp.zeros(nt, dtype = cp.float32)
     Ey_record = cp.zeros(nt, dtype = cp.float32)
     Ez_record = cp.zeros(nt, dtype = cp.float32)
+    Hx_record = cp.zeros(nt, dtype = cp.float32)
+    Hy_record = cp.zeros(nt, dtype = cp.float32)
+    Hz_record = cp.zeros(nt, dtype = cp.float32)
+
+    #动画
+    save_every = 1
+    n_frames = nt // save_every
+    frame_idx = 0
+    Ez_frames = cp.zeros((n_frames, Nx, Ny), dtype = cp.float32)
 
     omega_0 = 2 * cp.pi * c0 / lambda_0
     sigma = (2 / omega_0) * (lambda_0 / (lambda_U - lambda_L))
@@ -128,7 +140,6 @@ def main():
     z_coords = cp.arange(i_z_dipole_start, i_z_dipole_end)
     z_rel = (z_coords - kc) * dz
     I_dipole = I_profile(lambda_0, c0, z_rel, L)
-    print(I_dipole)# Dipole current profile
     # main loop
     for n in tqdm(range(nt)):
 
@@ -138,14 +149,14 @@ def main():
         # Ez[i_x_src][i_y_src][i_z_src] += gaussian_source(n, dt, sigma, omega_0)
         # Ez[ic, jc, i_z_dipole_start:i_z_dipole_end] += 0.5 * I_dipole * gaussian_source(n, dt, sigma, omega_0)
         #gaussian source
-        # Ez[ic - 1, jc - 1, i_z_dipole_start:i_z_dipole_end] += 0.5 *  gaussian_source(n,
-        #                                                                                         dt,
-        #                                                                                         sigma,
-        #                                                                                         omega_0)
-        # Ez[ic + 1, jc + 1, i_z_dipole_start:i_z_dipole_end] += 0.5 * gaussian_source(n,
-        #                                                                                         dt,
-        #                                                                                         sigma,
-        #                                                                                         omega_0)
+        Ez[ic - 1, jc - 1, i_z_dipole_start:i_z_dipole_end] += 0.5 *  gaussian_source(n,
+                                                                                                dt,
+                                                                                                sigma,
+                                                                                                omega_0)
+        Ez[ic + 1, jc + 1, i_z_dipole_start:i_z_dipole_end] += 0.5 * gaussian_source(n,
+                                                                                                dt,
+                                                                                                sigma,
+                                                                                                omega_0)
         # gaussian source with dipole current profile
         # Ez[ic - 1, jc - 1, i_z_dipole_start:i_z_dipole_end] += 0.5 * I_dipole * gaussian_source(n,
         #                                                                                     dt,
@@ -165,14 +176,14 @@ def main():
         #                                                                                         sigma,
         #                                                                                         omega_0)
         # sine source with dipole current profile
-        Ez[ic - 1, jc - 1, i_z_dipole_start:i_z_dipole_end] += 0.5 * I_dipole * sine_source(n,
-                                                                                 dt,
-                                                                                 sigma,
-                                                                                 omega_0)
-        Ez[ic + 1, jc + 1, i_z_dipole_start:i_z_dipole_end] += 0.5 * I_dipole * sine_source(n,
-                                                                                 dt,
-                                                                                 sigma,
-                                                                                 omega_0)
+        # Ez[ic - 1, jc - 1, i_z_dipole_start:i_z_dipole_end] += 0.5 * I_dipole * sine_source(n,
+        #                                                                          dt,
+        #                                                                          sigma,
+        #                                                                          omega_0)
+        # Ez[ic + 1, jc + 1, i_z_dipole_start:i_z_dipole_end] += 0.5 * I_dipole * sine_source(n,
+        #                                                                          dt,
+        #                                                                          sigma,
+        #                                                                          omega_0)
 
 
 
@@ -189,15 +200,32 @@ def main():
         Ex_record[n] = Ex[i_x_prob, i_y_prob, i_z_prob]
         Ey_record[n] = Ey[i_x_prob, i_y_prob, i_z_prob]
         Ez_record[n] = Ez[i_x_prob, i_y_prob, i_z_prob]
+        Hx_record[n] = 0.5 * (Hx[i_x_prob, i_y_prob, i_z_prob] + Hx[i_x_prob, i_y_prob, i_z_prob-1])
+        Hy_record[n] = 0.5 * (Hy[i_x_prob, i_y_prob, i_z_prob] + Hy[i_x_prob-1, i_y_prob, i_z_prob])
+        Hz_record[n] = 0.5 * (Hz[i_x_prob, i_y_prob, i_z_prob] + Hz[i_x_prob, i_y_prob-1, i_z_prob])
+        if n % save_every == 0:
+            Ez_frames[frame_idx] = Ez[:, :, kc]
+            frame_idx += 1
         if n == record_time:
             Ex_time_record = cp.copy(Ex)
             Ey_time_record = cp.copy(Ey)
             Ez_time_record = cp.copy(Ez)
 
-
+    cp.savez_compressed(
+        "probe_fields.npz",
+        Ex = Ex_record.get(),
+        Ey = Ey_record.get(),
+        Ez = Ez_record.get(),
+        Hx = Hx_record.get(),
+        Hy = Hy_record.get(),
+        Hz = Hz_record.get()
+    )
+    print("Simulation complete. Fields saved to 'probe_fields.npz'.")
     Ex_time_record_cpu = Ex_time_record.get()
     Ey_time_record_cpu = Ey_time_record.get()
     Ez_time_record_cpu = Ez_time_record.get()
+
+    Ez_frames_cpu = Ez_frames.get()
 
     gpu_vars = {
         'Dx': Dx, 'Dy': Dy, 'Dz': Dz,
@@ -213,6 +241,7 @@ def main():
     Ey_record_cpu = Ey_record.get()
     Ez_record_cpu = Ez_record.get()
     #plotting
+    print(frame_idx)
 
     #plot_final_fields(cpu_vars['Ex_cpu'], cpu_vars['Ey_cpu'], cpu_vars['Ez_cpu'], Nx, Ny, Nz)
     plot_final_fields(Ex_time_record_cpu, Ey_time_record_cpu, Ez_time_record_cpu,Nx, Ny, Nz)
@@ -221,6 +250,8 @@ def main():
     #print(Ex_record_cpu.shape)
     #print(Ex_record_cpu)
     plot_probe_fields(t, Ex_record_cpu, Ey_record_cpu, Ez_record_cpu)
+    # generate_field_animation(Ez_frames_cpu, save_every = save_every, save_path = "figs/field_animation_sinesource_700.mp4")
+    # plot_electric_field_magnitude_3d(Ex_time_record_cpu, Ey_time_record_cpu, Ez_time_record_cpu)
 
 def gaussian_source(n, dt, sigma, omega0):
     t_now = (n - 0.5) * dt
@@ -541,6 +572,87 @@ def plot_final_fields_normalized(Ex, Ey, Ez, Nx, Ny, Nz):
     plt.suptitle('Final E-field Distribution (z = center slice)')
     plt.tight_layout()
     plt.show()
+
+
+def generate_field_animation(
+        field_frames,
+        save_path = "figs/field_animation.mp4",
+        save_every = 1,
+        cmap = "RdBu",
+        vmin = None,
+        vmax = None,
+        fps = 30,
+        dpi = 200
+):
+
+    n_frames = field_frames.shape[0]
+
+    if vmin is None:
+        vmin = field_frames.min()
+    if vmax is None:
+        vmax = field_frames.max()
+
+    fig, ax = plt.subplots()
+    im = ax.imshow(
+        field_frames[0],  # Start with the first frame
+        cmap = cmap,
+        vmin = vmin,
+        vmax = vmax,
+        origin = "lower",
+        aspect = "auto"
+    )
+    cb = plt.colorbar(im, ax = ax)
+    cb.set_label("Field amplitude")
+
+    def update(i):
+        im.set_array(field_frames[i])
+        ax.set_title(f"Time step {i * save_every}")
+        return [im]
+
+    ani = animation.FuncAnimation(
+        fig, update, frames = n_frames, interval = 1000 / fps
+    )
+    ani.save(save_path, dpi = dpi, extra_args=['-vcodec', 'h264_nvenc'])
+    print(f"✅ 动画保存成功：{save_path}")
+
+
+def plot_electric_field_magnitude_3d(Ex, Ey, Ez, spacing = (1.0, 1.0, 1.0)):
+
+    # 插值 Yee 网格分量到中心
+    Ex_interp = 0.5 * (Ex[:-1, :, :] + Ex[1:, :, :])
+    Ey_interp = 0.5 * (Ey[:, :-1, :] + Ey[:, 1:, :])
+    Ez_interp = 0.5 * (Ez[:, :, :-1] + Ez[:, :, 1:])
+
+    # 电场强度模长
+    E_magnitude = np.sqrt(Ex_interp ** 2 + Ey_interp ** 2 + Ez_interp ** 2)
+
+    # 构造 pyvista ImageData 网格
+    Nx, Ny, Nz = E_magnitude.shape
+    grid = pv.ImageData()
+    grid.dimensions = np.array([Nx, Ny, Nz]) + 1
+    grid.origin = (0.0, 0.0, 0.0)
+    grid.spacing = spacing
+    grid.cell_data["E_magnitude"] = E_magnitude.flatten(order = "F")
+
+    # 初始化绘图器
+    plotter = pv.Plotter()
+
+    # 添加体积云图
+    plotter.add_volume(
+        grid, scalars = "E_magnitude",
+        cmap = "plasma",
+        opacity = [0.0, 0.05, 0.1, 0.3, 0.6, 1.0],  # 调整透明度以显示更多细节
+        shade = True
+    )
+
+    # 添加 z = 中心 截面
+    z_center = grid.bounds[5] / 2  # z_max / 2
+    slice_z = grid.slice(normal = 'z', origin = (0, 0, z_center))
+    plotter.add_mesh(slice_z, cmap = "coolwarm", opacity = 1.0, show_scalar_bar = True)
+
+    # 显示图像
+    plotter.add_axes()
+    plotter.show()
 
 
 if __name__ == "__main__":

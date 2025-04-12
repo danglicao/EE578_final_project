@@ -1,1 +1,1 @@
-from .core import fdtd_functions
+from .core import fdtd_functions, FDTDAlignedParams

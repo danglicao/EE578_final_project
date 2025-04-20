@@ -19,7 +19,7 @@ def main():
     lambda_U = cp.float32(165e-3)
     lambda_L = cp.float32(87.5e-3)
 
-    dx = dy = dz = cp.float32(2.5e-3)  # mm, spatial step size
+    dx = dy = dz = cp.float32(lambda_0/50)  # mm, spatial step size
 
     dt = 0.99 * dx / (c0 * cp.sqrt(cp.float32(3)))
 
@@ -31,7 +31,7 @@ def main():
     Ny = int(round((y_max - y_min) / dy)) + 1
     Nz = int(round((z_max - z_min) / dz)) + 1
 
-    nt = int(3e3)
+    nt = int(1e3)
     record_time = 108
 
     # Antenna hyper parameters
@@ -102,10 +102,10 @@ def main():
 
     # PML parameters
     pml_thickness = int(8)
-    power_reflection_coefficient = cp.float32(1e-8)
+    power_reflection_coefficient = cp.float32(1e-10)
     # sigma_max = cp.float32(4) * epsilon0 * c0 / (2 * dx)
-    # sigma_max = -(cp.float32(3+1) / cp.float32(4)) * (c0 / cp.float32(pml_thickness)) * cp.log(cp.float32(power_reflection_coefficient))
-    sigma_max = cp.float32(200)
+    sigma_max = -(cp.float32(3+1) / cp.float32(4)) * (c0 / cp.float32(pml_thickness)) * cp.log(cp.float32(power_reflection_coefficient))
+    # sigma_max = cp.float32(1e11)
     sigma_x_vec, sigma_y_vec, sigma_z_vec = pml_profile(sigma_max, pml_thickness, Nx, Ny, Nz)
     # sigma_x_3d = cp.zeros((Nx, Ny, Nz), dtype = cp.float32)
     # sigma_y_3d = cp.zeros((Nx, Ny, Nz), dtype = cp.float32)
@@ -138,7 +138,7 @@ def main():
     # main loop
     V0 = cp.float32(1.0)
     for n in tqdm(range(nt)):
-        Ez[ic, jc, kc] = V0 / dz * gaussian_source(n, dt, sigma, omega_0)
+        # Ez[ic, jc, kc] = V0 / dz * gaussian_source(n, dt, sigma, omega_0)
         # Ez[ic - 1, jc - 1, i_z_dipole_start:i_z_dipole_end] += 0.5 *  gaussian_source(n,
         #                                                                                         dt,
         #                                                                                         sigma,
@@ -163,10 +163,10 @@ def main():
         # Ez[i_x_src][i_y_src][i_z_src] += gaussian_source(n, dt, sigma, omega_0)
         # Ez[ic, jc, i_z_dipole_start:i_z_dipole_end] += 0.5 * I_dipole * gaussian_source(n, dt, sigma, omega_0)
         # point source
-        # Ez[ic, jc, kc] += gaussian_source(n,
-        #                                                                dt,
-        #                                                                sigma,
-        #                                                                omega_0)
+        Ez[ic, jc, kc] += gaussian_source(n,
+                                                                       dt,
+                                                                       sigma,
+                                                                       omega_0)
         # gaussian source
         # Ez[ic, jc, kc] += cp.float32(100)*dt*gaussian_source(n,
         #                                                                                         dt,
@@ -216,6 +216,7 @@ def main():
         Ez_gap_record_center[n] = Ez[ic, jc, kc]
         current = (Hy[ic + 1, jc, kc] - Hy[ic, jc, kc]) / dx - (
                 Hx[ic, jc + 1, kc] - Hx[ic, jc, kc]) / dy
+        # current = gaussian_source(n, dt,sigma,omega_0)
         # j_record[n] = gaussian_source(n, dt,sigma,omega_0)
         j_record[n] = current * dx * dy
 
@@ -235,16 +236,19 @@ def main():
     Ez_gap_record_center_cpu = Ez_gap_record_center.get()
     dEz_cpu = Ez_gap_record_right_cpu - Ez_gap_record_left_cpu
     j_record_cpu = j_record.get()
-    plt.plot(Ez_gap_record_center_cpu, label = 'Ez')
-    # plt.plot(dEz_cpu, label = "Ez")
-    plt.plot(j_record_cpu, label = "J")
-    plt.legend()
-    plt.title("Time-domain Signals")
+
 
     # calculate impedance
 
     window = np.hanning(nt)
     Vz = Ez_gap_record_center_cpu * dz
+
+    plt.plot(Vz, label = 'Vz')
+    # plt.plot(dEz_cpu, label = "Ez")
+    plt.plot(j_record_cpu, label = "J")
+    plt.legend()
+    plt.title("Time-domain Signals")
+
     Vz_f = np.fft.fft(Vz)
     # Vz_f = np.fft.fft(Ez_gap_record_center_cpu)
     # J_f = np.fft.rfft(j_record_cpu*window)
@@ -252,18 +256,16 @@ def main():
     print(max(abs(Vz_f)))
     print(max(abs(I_f)))
 
-    plt.figure()
-    plt.plot(Vz_f.real, Vz_f.imag, label = 'V')
-    plt.plot(I_f.real, I_f.imag, label = 'I')
-    plt.xlabel('Real')
-    plt.ylabel('Imaginary')
-    plt.title('Complex Plane Trajectories of V and I')
+    mag1 = np.abs(Vz_f)
+    mag2 = np.abs(I_f)
+    plt.plot(mag1, label = '|Vf|')
+    plt.plot(mag2, label = '|If|')
+    plt.xlabel('frequency')
+    plt.ylabel('Magnitude')
+    plt.title('Magnitude')
     plt.legend()
     plt.grid(True)
-    plt.axis('equal')
     plt.show()
-
-    V_f = Vz_f * dz
     # I_f = J_f * dx* dy* epsilon0 * omega_0
 
     # Z_f = V_f / I_f
@@ -283,7 +285,7 @@ def main():
     # freqs_ghz = freqs_ghz[:half]
 
     for i in range(1, len(omega)):
-        Z_f[i] = V_f[i] / I_f[i]
+        Z_f[i] = Vz_f[i] / I_f[i]
 
     plt.figure(figsize = (10, 4))
 
@@ -321,8 +323,8 @@ def main():
     # plt.show()
 
     plt.figure(figsize = (8, 6))
-    # plt.xlim(1, 5)
-    plt.ylim(-100, 100)
+    plt.xlim(1.5, 4)
+    plt.ylim(-50, 50)
     plt.plot(freqs_ghz, Z_f.real, label = 'Resistance (Re[Z])')
     plt.plot(freqs_ghz, Z_f.imag, label = 'Reactance (Im[Z])')
     plt.xlabel('Frequency (GHz)')
@@ -387,8 +389,8 @@ def update_equations(Dx, Dy, Dz, Ex, Ey, Ez, Hx, Hy, Hz, Bx, By, Bz,
     Dx[1:-1, 1:-1, 1:-1] = ((1 - dt / 2 * sigma_y_Dx) / (1 + dt / 2 * sigma_y_Dx)) * Dx[1:-1, 1:-1,
                                                                                      1:-1] + \
                            dt / (1 + dt / 2 * sigma_y_Dx) * (
-                                   (Hz[1:-1, 2:-1, 1:-1] - Hz[1:-1, 1:-2, 1:-1]) / (2 * dy) -
-                                   (Hy[1:-1, 1:-1, 2:-1] - Hy[1:-1, 1:-1, 1:-2]) / (2 * dz)
+                                   (Hz[1:-1, 2:-1, 1:-1] - Hz[1:-1, 1:-2, 1:-1]) / (dy) -
+                                   (Hy[1:-1, 1:-1, 2:-1] - Hy[1:-1, 1:-1, 1:-2]) / (dz)
                            )
 
     sigma_z_Dy = 0.5 * (sigma_z[:, :-1, :] + sigma_z[:, 1:, :])

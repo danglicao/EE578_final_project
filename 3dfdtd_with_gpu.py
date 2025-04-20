@@ -31,7 +31,7 @@ def main():
     Ny = int(round((y_max - y_min) / dy)) + 1
     Nz = int(round((z_max - z_min) / dz)) + 1
 
-    nt = int(500)
+    nt = int(3e3)
 
 
     x_src, y_src, z_src = 0, 0, 0
@@ -173,8 +173,8 @@ def update_equations(Dx, Dy, Dz, Ex, Ey, Ez, Hx, Hy, Hz, Bx, By, Bz,
 
     Dx[1:-1, 1:-1, 1:-1] = ((1 - dt/2 * sigma_y_Dx) / (1 + dt/2 * sigma_y_Dx)) * Dx[1:-1, 1:-1, 1:-1] + \
         dt / (1 + dt/2 * sigma_y_Dx) * (
-            (Hz[1:-1, 2:-1, 1:-1] - Hz[1:-1, 1:-2, 1:-1]) / (2 * dy) -
-            (Hy[1:-1, 1:-1, 2:-1] - Hy[1:-1, 1:-1, 1:-2]) / (2 * dz)
+            (Hz[1:-1, 2:-1, 1:-1] - Hz[1:-1, 1:-2, 1:-1]) / (dy) -
+            (Hy[1:-1, 1:-1, 2:-1] - Hy[1:-1, 1:-1, 1:-2]) / (dz)
         )
 
 
@@ -366,14 +366,14 @@ def plot_final_fields(Ex, Ey, Ez, Nx, Ny, Nz):
 
     # Ex 平面图：取 Ex[:, :, kz]
     plt.subplot(1, 3, 1)
-    plt.imshow(Ex[:, :, kz], cmap='RdBu', origin='lower')
-    plt.title('Ex at z = center')
+    plt.imshow(Ex[kx, :, :], cmap='RdBu', origin='lower')
+    plt.title('Ex at x = center')
     plt.colorbar()
 
     # Ey 平面图：取 Ey[:, :, kz]
     plt.subplot(1, 3, 2)
-    plt.imshow(Ey[:, :, kz], cmap='RdBu', origin='lower')
-    plt.title('Ey at z = center')
+    plt.imshow(Ey[ky, :, :], cmap='RdBu', origin='lower')
+    plt.title('Ey at y = center')
     plt.colorbar()
 
     # Ez 平面图：取 Ez[:, :, kz]

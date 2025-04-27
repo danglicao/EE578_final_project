@@ -17,33 +17,36 @@ def main():
     mu0 = cp.float64(4 * cp.pi * 1e-7)
     c0 = 1 / cp.sqrt(epsilon0 * mu0)
     # sigma_max = cp.float64(0.9e12) # without fixing J
-    # sigma_max = cp.float64(5e10)  # fixed J
+    sigma_max = cp.float64(1e11)  # fixed J
 
-    pml_thickness = 12
-    sigma_max = -(cp.float64(3 + 1) / cp.float64(4)) * (c0 / cp.float64(pml_thickness)) * cp.log(
-        cp.float64(1e-100))
+    pml_thickness = 16
+
+    # lambda_0 = cp.float64(600e-3)
+    # lambda_U = cp.float64(450e-3)
+    # lambda_L = cp.float64(350e-3)
 
     lambda_0 = cp.float64(300e-3)
-    lambda_U = cp.float64(325e-3)
-    lambda_L = cp.float64(275e-3)
+    lambda_U = lambda_0 * 1.6
+    lambda_L = lambda_0 * 0.7
 
     # print(c0/lambda_0/1e9)
 
     dx = dy = dz = cp.float64(5e-3)  # m, spatial step size
     dt = 0.99 * dx / (c0 * cp.sqrt(cp.float64(3)))
 
-    x_min, x_max = -200e-3, 200e-3
-    y_min, y_max = -200e-3, 200e-3
-    z_min, z_max = -200e-3, 200e-3
+    grid_m = 200e-3
+    x_min, x_max = -1 * grid_m, grid_m
+    y_min, y_max = -1 * grid_m, grid_m
+    z_min, z_max = -1 * grid_m, grid_m
 
     Nx = int(round((x_max - x_min) / dx)) + 1
     Ny = int(round((y_max - y_min) / dy)) + 1
     Nz = int(round((z_max - z_min) / dz)) + 1
 
-    nt = int(lambda_0 * 1e3 * lambda_0 * 10 * 2)
+    nt = 700
 
     x_src, y_src, z_src = 0, 0, 0
-    tmp = 0
+    tmp = 1
     # x_prob, y_prob, z_prob = 0, 0, 0 # for dipole impedance
     # x_prob, y_prob, z_prob = 0 + tmp * dx, 0 + tmp * dy, 0 + tmp * dz
     x_prob, y_prob, z_prob = x_min + (pml_thickness + tmp) * dx, y_min + (
@@ -75,7 +78,8 @@ def main():
     Jxy_gap = cp.zeros(nt, dtype = cp.float64)
 
     omega_0 = 2 * cp.pi * c0 / lambda_0
-    sigma = (2 / omega_0) * (lambda_0 / (lambda_U - lambda_L))
+    # sigma = (2 / omega_0) * (lambda_0 / (lambda_U - lambda_L))
+    sigma = (2 / omega_0) * lambda_0
 
     Ex = cp.zeros((Nx + 1, Ny, Nz), dtype = cp.float64)
     Ey = cp.zeros((Nx, Ny + 1, Nz), dtype = cp.float64)
@@ -97,6 +101,8 @@ def main():
     Dz_old = cp.zeros((Nx, Ny, Nz + 1), dtype = cp.float64)
     epsilon = cp.ones((Nx, Ny, Nz), dtype = cp.float64) * epsilon0
     mu = cp.ones((Nx, Ny, Nz), dtype = cp.float64) * mu0
+    excitation = cp.zeros((Nx, Ny, Nz), dtype = cp.float64)
+    Ez_excitation = cp.zeros((Nx, Ny, Nz + 1), dtype = cp.float64)
 
     sigma_x_vec, sigma_y_vec, sigma_z_vec = fdtd_functions.pml_profile(sigma_max, pml_thickness, Nx,
                                                                        Ny, Nz)
@@ -112,21 +118,23 @@ def main():
 
     params = fdtd_functions.fdtd_param_alignment_with_pec(Dx, Dy, Dz, Ex, Ey, Ez, Hx, Hy, Hz, Bx, By, Bz,
                                                  sigma_x_3d, sigma_y_3d, sigma_z_3d, epsilon, mu,
-                                                 i_x_src, i_y_src, i_z_src, i_z_dipole_start, i_z_dipole_end)
-    ic, jc, kc = Nx//2, Ny//2, Nz//2
+                                                 i_x_src, i_y_src, i_z_src, i_z_dipole_start,
+                                                 i_z_dipole_end)
+
     # main loop
     for n in tqdm(range(nt)):
+        # add source
         Dx, Dy, Dz, Ex, Ey, Ez, Hx, Hy, Hz, Bx, By, Bz, Dx_old, Dy_old, Dz_old, Bx_old, By_old, Bz_old = fdtd_functions.update_equations_with_pec(
             Dx, Dy, Dz, Ex, Ey, Ez, Hx, Hy, Hz, Bx, By, Bz,
             Dx_old, Dy_old, Dz_old, Bx_old, By_old, Bz_old,
             params,
             dt, dx, dy, dz)
+        excitation[i_x_src][i_y_src][i_z_src] = dt * fdtd_functions.gprmax_gaussian_source(n, dt,
+                                                                                           omega_0)
+        Ez_excitation[:, :, 1:-1] = 0.5 * (excitation[:, :, :-1] + excitation[:, :, 1:])
         # Ez[i_x_src][i_y_src][i_z_src] += dt * params.epsilon_Ez[i_x_src][i_y_src][i_z_src] * fdtd_functions.gaussian_source(n, dt, sigma, omega_0)*1e4
-        # Ez[i_x_src][i_y_src][i_z_src] += dt * fdtd_functions.gaussian_source(n, dt, sigma, omega_0)
+        Ez += Ez_excitation
         # Ez[i_x_src][i_y_src][i_z_src] += fdtd_functions.gaussian_source(n, dt, sigma, omega_0)
-        Ez[i_x_src][i_y_src][i_z_src] += dt * fdtd_functions.gprmax_gaussian_source(n, dt, omega_0)
-
-
 
         Ex_record[n] = Ex[i_x_prob, i_y_prob, i_z_prob]
         Ey_record[n] = Ey[i_x_prob, i_y_prob, i_z_prob]
@@ -135,15 +143,18 @@ def main():
         Hy_record[n] = Hy[i_x_prob, i_y_prob, i_z_prob]
         Hz_record[n] = Hz[i_x_prob, i_y_prob, i_z_prob]
 
-        # Ex_record[n] = (Ex[i_x_prob, i_y_prob, i_z_prob] + Ex[i_x_prob+1, i_y_prob, i_z_prob])/2
-        # Ey_record[n] = (Ey[i_x_prob, i_y_prob, i_z_prob] + Ey[i_x_prob, i_y_prob+1, i_z_prob])/2
-        # Ez_record[n] = (Ez[i_x_prob, i_y_prob, i_z_prob] + Ez[i_x_prob, i_y_prob, i_z_prob+1])/2
-        # Hx_record[n] = (Hx[i_x_prob, i_y_prob, i_z_prob] + Hx[i_x_prob, i_y_prob+1, i_z_prob+1])/2
-        # Hy_record[n] = (Hy[i_x_prob, i_y_prob, i_z_prob] + Hy[i_x_prob+1, i_y_prob, i_z_prob+1])/2
-        # Hz_record[n] = (Hz[i_x_prob, i_y_prob, i_z_prob] + Hz[i_x_prob+1, i_y_prob+1, i_z_prob])/2
+        Ex_record[n] = (Ex[i_x_prob, i_y_prob, i_z_prob] + Ex[i_x_prob + 1, i_y_prob, i_z_prob]) / 2
+        Ey_record[n] = (Ey[i_x_prob, i_y_prob, i_z_prob] + Ey[i_x_prob, i_y_prob + 1, i_z_prob]) / 2
+        Ez_record[n] = (Ez[i_x_prob, i_y_prob, i_z_prob] + Ez[i_x_prob, i_y_prob, i_z_prob + 1]) / 2
+        Hx_record[n] = (Hx[i_x_prob, i_y_prob, i_z_prob] + Hx[
+            i_x_prob, i_y_prob + 1, i_z_prob + 1]) / 2
+        Hy_record[n] = (Hy[i_x_prob, i_y_prob, i_z_prob] + Hy[
+            i_x_prob + 1, i_y_prob, i_z_prob + 1]) / 2
+        Hz_record[n] = (Hz[i_x_prob, i_y_prob, i_z_prob] + Hz[
+            i_x_prob + 1, i_y_prob + 1, i_z_prob]) / 2
         Ez_gap[n] = Ez[i_x_src, i_y_src, i_z_src] * dz
-        Jxy_gap[n] = fdtd_functions.gaussian_source(n, dt, sigma, omega_0) * dx * dy * dt
-        # Jxy_gap[n] = (Hx[i_x_src, i_y_src, i_z_src] - Hy[i_x_src, i_y_src, i_z_src])*dx*dy
+        # Jxy_gap[n] = fdtd_functions.gaussian_source(n, dt, sigma, omega_0) * dx * dy * dt
+        Jxy_gap[n] = fdtd_functions.gprmax_gaussian_source(n, dt, omega_0) * dx * dy * dt
 
         if n == int(nt / 2) + 20:
             Ex_time_record = cp.copy(Ex)
@@ -152,6 +163,7 @@ def main():
             Hx_time_record = cp.copy(Hx)
             Hy_time_record = cp.copy(Hy)
             Hz_time_record = cp.copy(Hz)
+            print(Ez_excitation[i_x_src][i_y_src][i_z_src - 1:i_z_src + 2])
 
     Ex_time_record_cpu = Ex_time_record.get()
     Ey_time_record_cpu = Ey_time_record.get()
@@ -169,7 +181,6 @@ def main():
         'Bx_old': Bx_old, 'By_old': By_old, 'Bz_old': Bz_old,
     }
 
-    cpu_vars = {name + '_cpu': arr.get() for name, arr in gpu_vars.items()}
     Ex_record_cpu = Ex_record.get()
     Ey_record_cpu = Ey_record.get()
     Ez_record_cpu = Ez_record.get()
@@ -203,18 +214,23 @@ def main():
     # print(Jxy_gap.get())
 
     freqs_hz = np.fft.fftfreq(nt, d = dt.item())
-    half = nt // 2
-    freqs_hz = freqs_hz[:half]
+    # half = nt // 2
+    # freqs_hz = freqs_hz[:half]
+    # E_f = E_f[:half]
+    # H_f = H_f[:half]
+    # Ez_gap_f = Ez_gap_f[:half]
+    # Jxy_gap_f = Jxy_gap_f[:half]
+    freqs_hz = np.fft.fftfreq(nt, d = dt.item())
+    positive = freqs_hz > 0
+    freqs_hz = freqs_hz
+    # freqs_hz = freqs_hz[positive]
+    # E_f = E_f[positive]
+    # H_f = H_f[positive]
+    # Ez_gap_f = Ez_gap_f[positive]
+    # Jxy_gap_f = Jxy_gap_f[positive]
 
-    E_f = E_f[:half]
-    H_f = H_f[:half]
     Z_freespace = np.divide(abs(E_f), abs(H_f), out = np.zeros_like(abs(E_f)),
                             where = (abs(H_f) != 0))
-
-    Ez_gap_f = Ez_gap_f[:half]
-    Jxy_gap_f = Jxy_gap_f[:half]
-    # print(Ez_gap_f)
-    # print(Jxy_gap_f)
     Z_dipole = np.divide(Ez_gap_f, Jxy_gap_f, out = np.zeros_like(Ez_gap_f),
                          where = (abs(Jxy_gap_f) != 0))
     # print(Z_dipole.real)
@@ -235,18 +251,23 @@ def main():
 
     # print(Z_dipole)
     fig, ax1 = plt.subplots(figsize = (6, 4))
-    ax1.plot(freqs_hz / 1e9, Z_dipole.real, label = "real", color = 'b')
+    ax1.plot(np.fft.fftshift(freqs_hz) / 1e9, np.fft.fftshift(Z_dipole.real), label = "real",
+             color = 'b')
     ax1.vlines(c0.get() / lambda_0 / 1e9, -1e4, 1e4, colors = "k")
-    plt.ylim(0, 350)
+    ax1.vlines(c0.get() / lambda_L / 1e9, -1e4, 1e4, colors = "k", linestyle = "dotted")
+    ax1.vlines(c0.get() / lambda_U / 1e9, -1e4, 1e4, colors = "k", linestyle = "dotted")
+    plt.ylim(0, 500)
     ax1.tick_params('y', colors = 'b')
     ax2 = ax1.twinx()
-    ax2.plot(freqs_hz / 1e9, Z_dipole.imag, label = "imag", color = 'r')
+    ax2.plot(np.fft.fftshift(freqs_hz) / 1e9, np.fft.fftshift(Z_dipole.imag), label = "imag",
+             color = 'r')
     ax2.tick_params('y', colors = 'r')
-    plt.ylim(-120, 120)
+    plt.ylim(-200, 200)
     fig.legend()
     plt.grid(True)
-    # plt.xlim(c0/lambda_U/1e9/2, c0/lambda_L/1e9*2)
-    plt.xlim(0.5, c0 / lambda_0 / 1e9 * 1.5)
+    # plt.xlim(c0/lambda_U/1e9/1.2, c0/lambda_L/1e9*1.2)
+    plt.xlim(-c0 / lambda_L / 1e9 * 1.1, c0 / lambda_L / 1e9 * 1.1)
+    # plt.xlim(0.5, c0/lambda_0/1e9*1.5)
     plt.xlabel("Frequency (GHz)")
     plt.ylabel("Impedance")
     plt.title("Dipole Impedance")
@@ -256,7 +277,6 @@ def main():
     index = np.argmin(np.abs(freqs_hz - target_freq))
     print(f'target freq {target_freq}')
     print(f'impedence at resonant Ghz is {Z_dipole[index]}')
-
 
 
 

@@ -6,6 +6,7 @@ from physics_functions import fdtd_functions
 
 
 def main():
+    data_save_path = 'data/our_Z.txt'
     # Normalized
     # epsilon0 = cp.float64(1.0)
     # mu0 = cp.float64(1.0)
@@ -286,7 +287,7 @@ def main():
     # plt.tight_layout()
     # plt.show()
     fig, ax = plt.subplots(figsize = (6, 4))
-    np.savetxt('C:/USC/EE578/final_project/data/our_Z.txt',Z_dipole)
+
 
     ax.plot(np.fft.fftshift(freqs_hz) / 1e9, np.fft.fftshift(Z_dipole.real), label = "real",
             color = 'b')
@@ -350,6 +351,8 @@ def main():
     index = np.argmin(np.abs(freqs_hz - target_freq))
     print(f'target freq {target_freq}')
     print(f'impedence at resonant Ghz is {Z_dipole[index]}')
+
+    np.savetxt(data_save_path, Z_dipole)
 
 
 

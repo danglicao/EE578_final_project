@@ -620,6 +620,13 @@ class fdtd_functions:
         dipole_pec_Ez[:, :, 0] = pec[:, :, 0]
         dipole_pec_Ez[:, :, -1] = pec[:, :, -1]
 
+        # dipole_pec_Ex[dipole_pec_Ex != 1] = 0
+        # dipole_pec_Ey[dipole_pec_Ey != 1] = 0
+        # dipole_pec_Ez[dipole_pec_Ez != 1] = 0
+        # # dipole_pec_Ez[i_x_src, i_y_src, i_z_src] = 1
+        # dipole_pec_Ez[i_x_src, i_y_src, i_z_src] = 0.5
+        # dipole_pec_Ez[i_x_src, i_y_src, i_z_src+1] = 0.5
+
         return FDTDAlignedParams_with_pec(
             sigma_y_Dx, sigma_z_Dy, sigma_x_Dz,
             sigma_z_Ex, sigma_x_Ex, epsilon_Ex,

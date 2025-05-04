@@ -20,7 +20,8 @@ def main():
     sigma_max = cp.float64(1e11)  # fixed J
 
     pml_thickness = 16
-
+    # sigma_max = cp.float64(1e15)  # without fixing J
+    # sigma_max = -(3 + 1) / 4 * (c0 / pml_thickness) * np.log(1e-10)
     # lambda_0 = cp.float64(600e-3)
     # lambda_U = cp.float64(450e-3)
     # lambda_L = cp.float64(350e-3)
@@ -43,7 +44,7 @@ def main():
     Ny = int(round((y_max - y_min) / dy)) + 1
     Nz = int(round((z_max - z_min) / dz)) + 1
 
-    nt = 700
+    nt = 1800
 
     x_src, y_src, z_src = 0, 0, 0
     tmp = 1
@@ -121,6 +122,7 @@ def main():
                                                  i_x_src, i_y_src, i_z_src, i_z_dipole_start,
                                                  i_z_dipole_end)
 
+
     # main loop
     for n in tqdm(range(nt)):
         # add source
@@ -129,11 +131,19 @@ def main():
             Dx_old, Dy_old, Dz_old, Bx_old, By_old, Bz_old,
             params,
             dt, dx, dy, dz)
-        excitation[i_x_src][i_y_src][i_z_src] = dt * fdtd_functions.gprmax_gaussian_source(n, dt,
-                                                                                           omega_0)
+        excitation[i_x_src][i_y_src][i_z_src] = dt * fdtd_functions.gprmax_gaussian_source(n, dt, omega_0)
         Ez_excitation[:, :, 1:-1] = 0.5 * (excitation[:, :, :-1] + excitation[:, :, 1:])
-        # Ez[i_x_src][i_y_src][i_z_src] += dt * params.epsilon_Ez[i_x_src][i_y_src][i_z_src] * fdtd_functions.gaussian_source(n, dt, sigma, omega_0)*1e4
         Ez += Ez_excitation
+        # if n == 100:
+        #     print(cp.unique(excitation))
+        #     print(cp.unique(Ez_excitation))
+        #     nonzero_indices_excitation = cp.nonzero(excitation)
+        #     nonzero_indices_Ez_excitation = cp.nonzero(Ez_excitation)
+        #     print("Excitation non-zero indices:", nonzero_indices_excitation)
+        #     print("Ez_excitation non-zero indices:", nonzero_indices_Ez_excitation)
+
+        # Ez[i_x_src][i_y_src][i_z_src] += dt * params.epsilon_Ez[i_x_src][i_y_src][i_z_src] * fdtd_functions.gaussian_source(n, dt, sigma, omega_0)*1e4
+        # Ez[i_x_src][i_y_src][i_z_src+1] += dt * fdtd_functions.gprmax_gaussian_source(n, dt, omega_0)
         # Ez[i_x_src][i_y_src][i_z_src] += fdtd_functions.gaussian_source(n, dt, sigma, omega_0)
 
         Ex_record[n] = Ex[i_x_prob, i_y_prob, i_z_prob]
@@ -152,18 +162,19 @@ def main():
             i_x_prob + 1, i_y_prob, i_z_prob + 1]) / 2
         Hz_record[n] = (Hz[i_x_prob, i_y_prob, i_z_prob] + Hz[
             i_x_prob + 1, i_y_prob + 1, i_z_prob]) / 2
-        Ez_gap[n] = Ez[i_x_src, i_y_src, i_z_src] * dz
+        Ez_gap[n] = (Ez[i_x_src, i_y_src, i_z_src] + Ez[i_x_src, i_y_src, i_z_src+1])* dz
         # Jxy_gap[n] = fdtd_functions.gaussian_source(n, dt, sigma, omega_0) * dx * dy * dt
         Jxy_gap[n] = fdtd_functions.gprmax_gaussian_source(n, dt, omega_0) * dx * dy * dt
 
-        if n == int(nt / 2) + 20:
+        if n == 215:
+        # if n == int(nt / 2) + 20:
             Ex_time_record = cp.copy(Ex)
             Ey_time_record = cp.copy(Ey)
             Ez_time_record = cp.copy(Ez)
             Hx_time_record = cp.copy(Hx)
             Hy_time_record = cp.copy(Hy)
             Hz_time_record = cp.copy(Hz)
-            print(Ez_excitation[i_x_src][i_y_src][i_z_src - 1:i_z_src + 2])
+            # print(Ez_excitation[i_x_src][i_y_src][i_z_src - 1:i_z_src + 2])
 
     Ex_time_record_cpu = Ex_time_record.get()
     Ey_time_record_cpu = Ey_time_record.get()
@@ -213,7 +224,6 @@ def main():
     # print(Ez_gap.get())
     # print(Jxy_gap.get())
 
-    freqs_hz = np.fft.fftfreq(nt, d = dt.item())
     # half = nt // 2
     # freqs_hz = freqs_hz[:half]
     # E_f = E_f[:half]
@@ -221,8 +231,10 @@ def main():
     # Ez_gap_f = Ez_gap_f[:half]
     # Jxy_gap_f = Jxy_gap_f[:half]
     freqs_hz = np.fft.fftfreq(nt, d = dt.item())
+    print(np.fft.fftshift(freqs_hz)[0])
+    print(np.fft.fftshift(freqs_hz)[-1])
     positive = freqs_hz > 0
-    freqs_hz = freqs_hz
+    # freqs_hz = freqs_hz
     # freqs_hz = freqs_hz[positive]
     # E_f = E_f[positive]
     # H_f = H_f[positive]
@@ -250,27 +262,88 @@ def main():
     # plt.show()
 
     # print(Z_dipole)
-    fig, ax1 = plt.subplots(figsize = (6, 4))
-    ax1.plot(np.fft.fftshift(freqs_hz) / 1e9, np.fft.fftshift(Z_dipole.real), label = "real",
-             color = 'b')
-    ax1.vlines(c0.get() / lambda_0 / 1e9, -1e4, 1e4, colors = "k")
-    ax1.vlines(c0.get() / lambda_L / 1e9, -1e4, 1e4, colors = "k", linestyle = "dotted")
-    ax1.vlines(c0.get() / lambda_U / 1e9, -1e4, 1e4, colors = "k", linestyle = "dotted")
-    plt.ylim(0, 500)
-    ax1.tick_params('y', colors = 'b')
-    ax2 = ax1.twinx()
-    ax2.plot(np.fft.fftshift(freqs_hz) / 1e9, np.fft.fftshift(Z_dipole.imag), label = "imag",
-             color = 'r')
-    ax2.tick_params('y', colors = 'r')
-    plt.ylim(-200, 200)
-    fig.legend()
-    plt.grid(True)
-    # plt.xlim(c0/lambda_U/1e9/1.2, c0/lambda_L/1e9*1.2)
-    plt.xlim(-c0 / lambda_L / 1e9 * 1.1, c0 / lambda_L / 1e9 * 1.1)
-    # plt.xlim(0.5, c0/lambda_0/1e9*1.5)
-    plt.xlabel("Frequency (GHz)")
-    plt.ylabel("Impedance")
-    plt.title("Dipole Impedance")
+    # fig, ax1 = plt.subplots(figsize = (6, 4))
+    # ax1.plot(np.fft.fftshift(freqs_hz) / 1e9, np.fft.fftshift(Z_dipole.real), label = "real",
+    #          color = 'b')
+    # ax1.vlines(c0.get() / lambda_0 / 1e9, -1e4, 1e4, colors = "k")
+    # ax1.vlines(c0.get() / lambda_L / 1e9, -1e4, 1e4, colors = "k", linestyle = "dotted")
+    # ax1.vlines(c0.get() / lambda_U / 1e9, -1e4, 1e4, colors = "k", linestyle = "dotted")
+    # plt.ylim(0, 500)
+    # ax1.tick_params('y', colors = 'b')
+    # ax2 = ax1.twinx()
+    # ax2.plot(np.fft.fftshift(freqs_hz) / 1e9, np.fft.fftshift(Z_dipole.imag), label = "imag",
+    #          color = 'r')
+    # ax2.tick_params('y', colors = 'r')
+    # plt.ylim(-200, 200)
+    # fig.legend()
+    # plt.grid(True)
+    # # plt.xlim(c0/lambda_U/1e9/1.2, c0/lambda_L/1e9*1.2)
+    # plt.xlim(-c0 / lambda_L / 1e9 * 1.1, c0 / lambda_L / 1e9 * 1.1)
+    # # plt.xlim(0.5, c0/lambda_0/1e9*1.5)
+    # plt.xlabel("Frequency (GHz)")
+    # plt.ylabel("Impedance")
+    # plt.title("Dipole Impedance")
+    # plt.tight_layout()
+    # plt.show()
+    fig, ax = plt.subplots(figsize = (6, 4))
+    np.savetxt('C:/USC/EE578/final_project/data/our_Z.txt',Z_dipole)
+
+    ax.plot(np.fft.fftshift(freqs_hz) / 1e9, np.fft.fftshift(Z_dipole.real), label = "real",
+            color = 'b')
+    ax.plot(np.fft.fftshift(freqs_hz) / 1e9, np.fft.fftshift(Z_dipole.imag), label = "imageinary",
+            color = 'r')
+
+    # ax.vlines(c0.get() / lambda_0 / 1e9, -200, 500, colors = "k")
+    # ax.vlines(c0.get() / lambda_L / 1e9, -200, 500, colors = "k", linestyle = "dotted")
+    # ax.vlines(c0.get() / lambda_U / 1e9, -200, 500, colors = "k", linestyle = "dotted")
+    resonant_freq = c0.get() / lambda_0 / 1e9
+
+    x_freq = np.fft.fftshift(freqs_hz) / 1e9
+    y_real = np.fft.fftshift(Z_dipole.real)
+    y_imag = np.fft.fftshift(Z_dipole.imag)
+
+    idx = np.abs(x_freq - resonant_freq).argmin()
+
+
+    real_intersect = y_real[idx]
+    imag_intersect = y_imag[idx]
+
+
+    ax.vlines(resonant_freq, -200, 500, colors = "k")
+    ax.vlines(c0.get() / lambda_L / 1e9, -200, 500, colors = "k", linestyle = "dotted")
+    ax.vlines(c0.get() / lambda_U / 1e9, -200, 500, colors = "k", linestyle = "dotted")
+
+    # 标注交点
+    ax.plot(resonant_freq, real_intersect, 'bo', markersize = 6)
+    ax.plot(resonant_freq, imag_intersect, 'ro', markersize = 6)
+
+    # 添加交点坐标文本
+    ax.annotate(f'({resonant_freq:.2f}, {real_intersect:.2f})',
+                xy = (resonant_freq, real_intersect),
+                xytext = (10, 10),
+                textcoords = 'offset points',
+                fontsize = 8,
+                arrowprops = dict(arrowstyle = '->', color = 'blue'))
+
+    ax.annotate(f'({resonant_freq:.2f}, {imag_intersect:.2f})',
+                xy = (resonant_freq, imag_intersect),
+                xytext = (10, -20),
+                textcoords = 'offset points',
+                fontsize = 8,
+                arrowprops = dict(arrowstyle = '->', color = 'red'))
+
+
+    ax.set_ylim(-200, 300)
+    ax.set_xlim(0.5, 1.6)
+
+
+    ax.legend()
+    ax.grid(True)
+    # ax.set_xlim(-c0 / lambda_L / 1e9 * 1.1, c0 / lambda_L / 1e9 * 1.1)
+    ax.set_xlabel("Frequency (GHz)")
+    ax.set_ylabel("Impedance(Z0)")
+    ax.set_title("Dipole Impedance")
+
     plt.tight_layout()
     plt.show()
     target_freq = float(c0 / lambda_0)

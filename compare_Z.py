@@ -22,6 +22,7 @@ def main() -> None:
     ax.plot(np.fft.fftshift(f) / 1e9, np.fft.fftshift(our_Z.real), label = "our simulation resistivity",
             color = 'r')
     ax.plot(matlab_freq/1e9, matlab_z.real, label = "matlab resistivity", color = 'g')
+    ax.vlines(1, 0, 500, colors = "k")
 
     ax.set_ylim(0, 500)
     ax.set_xlim(0.5, 1.6)
@@ -43,6 +44,7 @@ def main() -> None:
             label = "our simulation reactivity",
             color = 'r')
     ax.plot(matlab_freq / 1e9, matlab_z.imag, label = "matlab reactivity", color = 'g')
+    ax.vlines(1, -500, 500, colors = "k")
     ax.plot()
 
     ax.set_ylim(-500, 500)

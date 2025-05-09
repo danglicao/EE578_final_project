@@ -163,7 +163,8 @@ def main():
             i_x_prob + 1, i_y_prob, i_z_prob + 1]) / 2
         Hz_record[n] = (Hz[i_x_prob, i_y_prob, i_z_prob] + Hz[
             i_x_prob + 1, i_y_prob + 1, i_z_prob]) / 2
-        Ez_gap[n] = (Ez[i_x_src, i_y_src, i_z_src] + Ez[i_x_src, i_y_src, i_z_src+1])* dz
+        # Ez_gap[n] = (Ez[i_x_src, i_y_src, i_z_src] + Ez[i_x_src, i_y_src, i_z_src+1])* dz
+        Ez_gap[n] = (Ez[i_x_src, i_y_src, i_z_src]) * dz
         # Jxy_gap[n] = fdtd_functions.gaussian_source(n, dt, sigma, omega_0) * dx * dy * dt
         Jxy_gap[n] = fdtd_functions.gprmax_gaussian_source(n, dt, omega_0) * dx * dy * dt
 

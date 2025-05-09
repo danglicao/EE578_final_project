@@ -1,8 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.io
-import pandas as pd
-import os
 
 def main() -> None:
     ems_Z = np.loadtxt('data/openEms_Z.txt', dtype = complex)

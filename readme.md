@@ -13,4 +13,4 @@ If you want to compare with the open EMS, you can run the code in openMES_models
 Then use our test_with_antenna.mlx to get the matlab data. You can run it in Matlab with the Antenna toolbox.
 Then you can use the compare_Z.py to compare the real and imaginary part of the impedance from our model,matlab model and the openEMS model.
 
-To easy the comparison, we also provide the impedance data from openEMS in the data folder. You can directly use that data to compare with our model.
+To easy the comparison, we also provide the impedance data from all three models in the data folder. You can directly use that data to compare with our model.

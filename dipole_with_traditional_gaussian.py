@@ -315,11 +315,9 @@ def main():
     ax.vlines(c0.get() / lambda_L / 1e9, -200, 500, colors = "k", linestyle = "dotted")
     ax.vlines(c0.get() / lambda_U / 1e9, -200, 500, colors = "k", linestyle = "dotted")
 
-    # 标注交点
     ax.plot(resonant_freq, real_intersect, 'bo', markersize = 6)
     ax.plot(resonant_freq, imag_intersect, 'ro', markersize = 6)
 
-    # 添加交点坐标文本
     ax.annotate(f'({resonant_freq:.2f}, {real_intersect:.2f})',
                 xy = (resonant_freq, real_intersect),
                 xytext = (10, 10),
@@ -484,7 +482,6 @@ def plot_quadrants(ax, array, fixed_coord, cmap):
 
 
 def figure_3D_array_slices(x, y, z, cmap = None):
-    """Plot a 3d array using three intersecting centered planes."""
     fig = plt.figure()
     ax = fig.add_subplot(projection = '3d')
     ax.set_box_aspect(

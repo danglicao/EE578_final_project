@@ -57,16 +57,7 @@ def main() -> None:
     plt.tight_layout()
     plt.show()
 
-def see_matlab_data():
-
-    # 读取 mat 文件
-    mat_data = scipy.io.loadmat('data/matlabimpedance.mat')
-    x = mat_data['freq'].squeeze()
-    y = mat_data['z'].squeeze()
-    print(x.shape)
-    print(y.shape)
 
 
 if __name__ == '__main__':
     main()
-    # see_matlab_data()

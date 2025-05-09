@@ -12,7 +12,7 @@ post_proc_only = False
 
 
 dipole_len      = 150
-gap_len         = 5
+gap_len         = 10
 wire_radius     = 5
 
 

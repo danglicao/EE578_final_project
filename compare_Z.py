@@ -1,10 +1,15 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import scipy.io
+import pandas as pd
 import os
 
 def main() -> None:
     ems_Z = np.loadtxt('data/openEms_Z.txt', dtype = complex)
     our_Z = np.loadtxt('data/our_Z.txt', dtype = complex)
+    mat_data = scipy.io.loadmat('data/matlabimpedance.mat')
+    matlab_freq = mat_data['freq'].squeeze()
+    matlab_z = mat_data['z'].squeeze()
 
     print(ems_Z.shape)
     print(our_Z.shape)
@@ -16,8 +21,9 @@ def main() -> None:
             color = 'b')
     ax.plot(np.fft.fftshift(f) / 1e9, np.fft.fftshift(our_Z.real), label = "our simulation resistivity",
             color = 'r')
+    ax.plot(matlab_freq/1e9, matlab_z.real, label = "matlab resistivity", color = 'g')
 
-    ax.set_ylim(0, 300)
+    ax.set_ylim(0, 500)
     ax.set_xlim(0.5, 1.6)
 
     ax.legend()
@@ -36,8 +42,10 @@ def main() -> None:
     ax.plot(np.fft.fftshift(f) / 1e9, np.fft.fftshift(our_Z.imag),
             label = "our simulation reactivity",
             color = 'r')
+    ax.plot(matlab_freq / 1e9, matlab_z.imag, label = "matlab reactivity", color = 'g')
+    ax.plot()
 
-    ax.set_ylim(-200, 200)
+    ax.set_ylim(-500, 500)
     ax.set_xlim(0.5, 1.6)
 
     ax.legend()
@@ -49,5 +57,16 @@ def main() -> None:
     plt.tight_layout()
     plt.show()
 
+def see_matlab_data():
+
+    # 读取 mat 文件
+    mat_data = scipy.io.loadmat('data/matlabimpedance.mat')
+    x = mat_data['freq'].squeeze()
+    y = mat_data['z'].squeeze()
+    print(x.shape)
+    print(y.shape)
+
+
 if __name__ == '__main__':
     main()
+    # see_matlab_data()

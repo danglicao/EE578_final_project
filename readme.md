@@ -14,3 +14,5 @@ Then use our test_with_antenna.mlx to get the matlab data. You can run it in Mat
 Then you can use the compare_Z.py to compare the real and imaginary part of the impedance from our model,matlab model and the openEMS model.
 
 To easy the comparison, we also provide the impedance data from all three models in the data folder. You can directly use that data to compare with our model.
+
+Run file: 3d-dipole-finalized, 1ghz-free-space-impedance-finalized, 2d_fdtd_TM_final

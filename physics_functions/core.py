@@ -5,6 +5,7 @@ import cupy as cp
 
 @dataclass
 class FDTDAlignedParams_with_pec:
+    '''This structure is used to store the parameters for the FDTD algorithm. Please Call this one as it contains the pec structure.'''
     sigma_y_Dx: any
     sigma_z_Dy: any
     sigma_x_Dz: any
@@ -35,6 +36,7 @@ class FDTDAlignedParams_with_pec:
 
 @dataclass
 class FDTDAlignedParams:
+    '''Old version without PEC. If you have a better PEC structure you can call this.'''
     sigma_y_Dx: any
     sigma_z_Dy: any
     sigma_x_Dz: any
@@ -61,14 +63,17 @@ class FDTDAlignedParams:
     mu_Hz: any
 
 class fdtd_functions:
+    '''This class contains the functions used in the FDTD algorithm.'''
     @staticmethod
     def gaussian_source(n, dt, sigma, omega0):
+        '''Gaussian sine source function.'''
         t_now = (n - 0.5) * dt
         t0 = 4 * sigma
         return cp.exp(-((t_now - t0) / sigma) ** 2) * cp.sin(omega0 * (t_now - t0))
 
     @staticmethod
     def gprmax_gaussian_source(n, dt, omega0):
+        '''Gaussian source function.'''
         t_now = (n - 0.5) * dt
         f_c = omega0 / (2 * cp.pi)
         zeta = 2 * cp.pi ** 2 * f_c ** 2
@@ -77,10 +82,12 @@ class fdtd_functions:
 
     @staticmethod
     def sigma_profile(sigma_max, pml_thickness, distance):
+        '''PML SIGMA distribution'''
         return sigma_max * (distance / pml_thickness) ** 3
 
     @staticmethod
     def pml_profile(sigma_max, pml_thickness, Nx, Ny, Nz):
+        '''PML profile function. put pml satisfy the yee grid'''
         sigma_x = cp.zeros(Nx)
         sigma_y = cp.zeros(Ny)
         sigma_z = cp.zeros(Nz)
@@ -97,6 +104,7 @@ class fdtd_functions:
 
     @staticmethod
     def fdtd_param_alignment(Dx, Dy, Dz, Ex, Ey, Ez, Hx, Hy, Hz, Bx, By, Bz,sigma_x_3d, sigma_y_3d, sigma_z_3d, epsilon, mu):
+        '''This function is used to align the parameters of the FDTD algorithm. Make all the parameters has the shape satisfy the yee grid '''
         # Dx
         sigma_y_Dx = cp.zeros_like(Dx, dtype = cp.float64)
         sigma_y_Dx[1:-1, :, :] = 0.5 * (sigma_y_3d[:-1, :, :] + sigma_y_3d[1:, :, :])
@@ -429,6 +437,7 @@ class fdtd_functions:
     def fdtd_param_alignment_with_pec(Dx, Dy, Dz, Ex, Ey, Ez, Hx, Hy, Hz, Bx, By, Bz, sigma_x_3d, sigma_y_3d,
                              sigma_z_3d, epsilon, mu,
                              i_x_src, i_y_src, i_z_src, i_z_dipole_start, i_z_dipole_end):
+        '''Same as before, but with PEC boundary condition.'''
         # Dx
         sigma_y_Dx = cp.zeros_like(Dx, dtype = cp.float32)
         sigma_y_Dx[1:-1, :, :] = 0.5 * (sigma_y_3d[:-1, :, :] + sigma_y_3d[1:, :, :])
@@ -644,6 +653,7 @@ class fdtd_functions:
                          Dx_old, Dy_old, Dz_old, Bx_old, By_old, Bz_old,
                          params: FDTDAlignedParams,
                          dt, dx, dy, dz):
+        '''same as before, but with PEC boundary condition.'''
         #     #unpack params
         sigma_y_Dx = params.sigma_y_Dx
         sigma_z_Dy = params.sigma_z_Dy

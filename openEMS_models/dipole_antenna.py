@@ -37,7 +37,7 @@ CSX  = ContinuousStructure()
 FDTD.SetCSX(CSX)
 mesh = CSX.GetGrid()
 mesh.SetDeltaUnit(1e-3)
-# mesh_res = C0/(f0+fc)/1e-3/20
+
 
 mesh.AddLine('x', [-SimBox[0]/2,  SimBox[0]/2])
 mesh.AddLine('y', [-SimBox[1]/2,  SimBox[1]/2])
@@ -87,8 +87,7 @@ if not post_proc_only:
     FDTD.Run(Sim_Path, verbose=3, cleanup=True)
 
 
-# f = linspace(max(0.5e9, f0-fc), f0+fc, 601)
-# f = linspace(0, 1.6e9, 1800)  # [Hz] 频率范围
+
 dt =0.99 * 5e-3 / (3e8 * np.sqrt(np.float64(3)))
 f = np.fft.fftfreq(1800, d = dt.item())
 port.CalcPort(Sim_Path, f)

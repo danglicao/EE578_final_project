@@ -6,6 +6,7 @@ from physics_functions import fdtd_functions
 
 
 def main():
+    # === use this line to set the save path of the dipole impedance data ===
     data_save_path = 'data/our_Z.txt'
     # Normalized
     # epsilon0 = cp.float64(1.0)
@@ -13,6 +14,7 @@ def main():
     # c0 = cp.float64(1.0)
     # sigma_max = 200
 
+    # === Set parameters ===
     # Not Normalized
     epsilon0 = cp.float64(8.85e-12)
     mu0 = cp.float64(4 * cp.pi * 1e-7)
@@ -123,15 +125,15 @@ def main():
                                                  i_x_src, i_y_src, i_z_src, i_z_dipole_start,
                                                  i_z_dipole_end)
 
-
-    # main loop
+    record_time = 215 # set this line to record the time step you want to plot
+    # === Main loop ===
     for n in tqdm(range(nt)):
-        # add source
         Dx, Dy, Dz, Ex, Ey, Ez, Hx, Hy, Hz, Bx, By, Bz, Dx_old, Dy_old, Dz_old, Bx_old, By_old, Bz_old = fdtd_functions.update_equations_with_pec(
             Dx, Dy, Dz, Ex, Ey, Ez, Hx, Hy, Hz, Bx, By, Bz,
             Dx_old, Dy_old, Dz_old, Bx_old, By_old, Bz_old,
             params,
             dt, dx, dy, dz)
+        #=== add source ===
         excitation[i_x_src][i_y_src][i_z_src] = dt * fdtd_functions.gprmax_gaussian_source(n, dt, omega_0)
         Ez_excitation[:, :, 1:-1] = 0.5 * (excitation[:, :, :-1] + excitation[:, :, 1:])
         Ez += Ez_excitation
@@ -168,7 +170,7 @@ def main():
         # Jxy_gap[n] = fdtd_functions.gaussian_source(n, dt, sigma, omega_0) * dx * dy * dt
         Jxy_gap[n] = fdtd_functions.gprmax_gaussian_source(n, dt, omega_0) * dx * dy * dt
 
-        if n == 215:
+        if n == record_time:
         # if n == int(nt / 2) + 20:
             Ex_time_record = cp.copy(Ex)
             Ey_time_record = cp.copy(Ey)
@@ -287,6 +289,8 @@ def main():
     # plt.title("Dipole Impedance")
     # plt.tight_layout()
     # plt.show()
+
+    #=== dipole impedance calculation and plotting ===
     fig, ax = plt.subplots(figsize = (6, 4))
 
 
@@ -357,6 +361,7 @@ def main():
 
 
 def plot_final_fields(Ex, Ey, Ez, Hx, Hy, Hz, Nx, Ny, Nz):
+    #=== 2d plots ===
     kx = Nx // 2
     ky = Ny // 2
     kz = Nz // 2
@@ -410,6 +415,7 @@ def plot_final_fields(Ex, Ey, Ez, Hx, Hy, Hz, Nx, Ny, Nz):
 
 
 def plot_probe_fields(t, Ex_record, Ey_record, Ez_record, Hx_record, Hy_record, Hz_record):
+    #=== 1D porbe field vs time plots ===
     plt.figure(figsize = (10, 6))
     plt.plot(t, Ex_record, label = 'Ex', linewidth = 1.5)
     plt.plot(t, Ey_record, label = 'Ey', linewidth = 3, linestyle = 'dotted')
@@ -436,6 +442,7 @@ def plot_probe_fields(t, Ex_record, Ey_record, Ez_record, Hx_record, Hy_record, 
 
 
 def plot_quadrants(ax, array, fixed_coord, cmap):
+    #=== to show 3d, but not used, unreasonable plots, don't call this functions===
     nx, ny, nz = array.shape
     index = {
         'x': (nx // 2, slice(None), slice(None)),
@@ -482,6 +489,7 @@ def plot_quadrants(ax, array, fixed_coord, cmap):
 
 
 def figure_3D_array_slices(x, y, z, cmap = None):
+    #=== to show 3d slicing, but not used, for test only, don't call this functions ===:
     fig = plt.figure()
     ax = fig.add_subplot(projection = '3d')
     ax.set_box_aspect(

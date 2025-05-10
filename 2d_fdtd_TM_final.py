@@ -19,11 +19,12 @@ def main():
     pml_thickness = 16
     sigma_max = 1e11
 
+    # Grid Setup
     x_min, x_max = -200e-3, 200e-3
     y_min, y_max = -200e-3, 200e-3
     Nx = int(round((x_max - x_min) / dx)) + 1
     Ny = int(round((y_max - y_min) / dy)) + 1
-
+    
     nt = 400
     dp_x, dp_y= 0, 0
     x_prob, y_prob = x_min+(pml_thickness+1)*dx, y_min+(pml_thickness+1)*dy
@@ -34,6 +35,7 @@ def main():
     i_dp_x = int(round((dp_x - x_min) / dx))
     i_dp_y = int(round((dp_y - y_min) / dy))
 
+    # Dipole Setup, y direction
     dp_len = int(round(lambda_0/2/dy))
     i_dp_x_min = i_dp_x - dp_len
     i_dp_x_max = i_dp_x + dp_len + 1
@@ -96,7 +98,8 @@ def main():
             ax.add_patch(rect)
             frame_list.append(rect)
             frames.append(frame_list)
-
+    
+    # Plot and Export Animation of Ez as .gif
     ani = animation.ArtistAnimation(fig, frames, interval=50, blit=True)
     ani.save('Ez_field_with_colorbar.gif', writer='pillow')
     plt.show()
